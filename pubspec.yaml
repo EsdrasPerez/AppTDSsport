@@ -10,13 +10,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  # SDK oficial de Supabase
+  supabase_flutter: ^2.8.0
+  # Para el botón de Google en el móvil
+  google_sign_in: ^6.2.1 
+  
   cupertino_icons: ^1.0.8
   flutter_dotenv: ^6.0.1
-  
-  # Backend
-  supabase_flutter: ^2.5.0
-  
+   
+
   # State Management & Routing
   flutter_riverpod: ^2.5.1
   go_router: ^14.0.0

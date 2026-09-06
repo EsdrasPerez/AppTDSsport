@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../data/auth_repository.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -82,6 +82,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: _procesarLogin,
                       child: const Text('ENTRAR'),
                     ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => context.push('/registro'),
+                child: const Text('¿No tienes cuenta? Regístrate'),
+              ),
             ],
           ),
         ),
