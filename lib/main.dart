@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:tdsport_app/features/auth/presentation/registro_screen.dart';
 
 import 'features/auth/presentation/login_screen.dart';
+import 'features/dashboard/presentation/dashboard_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,9 +32,7 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/dashboard',
-      builder: (context, state) => const Scaffold(
-        body: Center(child: Text('Bienvenido al Dashboard de TDSPORT')),
-      ),
+      builder: (context, state) => const DashboardScreen(),
     ),
   ],
 );

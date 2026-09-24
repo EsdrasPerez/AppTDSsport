@@ -311,7 +311,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                             minimumSize: const Size(double.infinity, 56),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
-                            ),
+                            ), 
                             elevation: 0,
                           ),
                           child: Row(
