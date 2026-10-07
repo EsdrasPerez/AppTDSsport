@@ -21,13 +21,16 @@ class _RegistroScreenState extends State<RegistroScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  final _confirmarPasswordController = TextEditingController();
+  bool _obscureConfirmPassword = true;
+
   // Colors based on mockup
-  final Color _bgColor = const Color(0xFF101828);
-  final Color _primaryGreen = const Color(0xFF7CFF4F);
-  final Color _fieldBgColor = const Color(0xFF1D2939);
-  final Color _textColor = const Color(0xFFF7F9FC);
-  final Color _hintColor = const Color(0xFF667085);
-  final Color _labelColor = const Color(0xFF98A2B3); 
+  final Color _bgColor = const Color(0xFF121212); // Fondo oscuro
+  final Color _primaryGreen = const Color(0xFFC6FF00); // Verde neón
+  final Color _fieldBgColor = const Color(0xFF2C2C2C); // Fondo de campos (igual que login)
+  final Color _textColor = Colors.white;
+  final Color _hintColor = Colors.white30;
+  final Color _labelColor = Colors.white70; 
   
   @override
   void dispose() {
@@ -37,6 +40,14 @@ class _RegistroScreenState extends State<RegistroScreen> {
     super.dispose();
   }
 
+  String _evaluarSeguridadContrasena(String password) {
+  if (password.length < 6) return 'Débil';
+  if (!password.contains(RegExp(r'[0-9]'))) return 'Media';
+  if (!password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) return 'Media';
+  if (password.length >= 8) return 'Fuerte';
+  return 'Media';
+  }
+  
   Future<void> _procesarRegistro() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -85,21 +96,14 @@ class _RegistroScreenState extends State<RegistroScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.spaceMono(
-            color: const Color(0xFFD0D5DD), 
-            fontWeight: FontWeight.w500,
-            fontSize: 13,
-          ),
-        ),
-        const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           obscureText: isPassword ? _obscurePassword : false,
           keyboardType: keyboardType,
           style: TextStyle(color: _textColor),
           decoration: InputDecoration(
+            labelText: label,
+            labelStyle: TextStyle(color: _labelColor),
             hintText: hintText,
             hintStyle: TextStyle(color: _hintColor, fontSize: 14),
             prefixIcon: Icon(prefixIcon, color: _hintColor, size: 20),
@@ -122,16 +126,16 @@ class _RegistroScreenState extends State<RegistroScreen> {
             filled: true,
             fillColor: _fieldBgColor,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF344054), width: 1),
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF344054), width: 1),
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: _primaryGreen, width: 1),
+              borderRadius: BorderRadius.circular(20),
+              borderSide: const BorderSide(color: Colors.white, width: 1),
             ),
             contentPadding: const EdgeInsets.symmetric(vertical: 16),
           ),
@@ -156,48 +160,17 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Logo
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF071A33),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Text(
-                              'T',
-                              style: TextStyle(
-                                color: Color(0xFF1769FF),
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                            Text(
-                              'D',
-                              style: TextStyle(
-                                color: _textColor,
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ],
-                        ),
+                  Align(
+                    alignment: Alignment.center,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(30.0),
+                      child:  Image.asset(
+                        'assets/logo.jpg',
+                        width: 150,
+                        height: 150,
+                        fit: BoxFit.contain,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'TDSport',
-                        style: GoogleFonts.inter(
-                          color: _textColor,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 40),
                   
@@ -274,7 +247,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     },
                   ),
                   const SizedBox(height: 20),
+
                   
+
                   // Input de Contraseña
                   _buildTextField(
                     label: 'Contraseña Segura',
@@ -284,13 +259,41 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     isPassword: true,
                     validator: (val) {
                       if (val == null || val.isEmpty) return 'La contraseña es requerida';
-                      if (val.length < 8) return 'Mínimo 8 caracteres';
-                      if (!val.contains(RegExp(r'[0-9]'))) return 'Debe contener un número';
-                      if (!val.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) return 'Debe contener un símbolo';
+                      final seguridad = _evaluarSeguridadContrasena(val);
+                      if (seguridad == 'Débil') {
+                        if (val.length < 8) return 'Mínimo 8 caracteres';
+                        if (!val.contains(RegExp(r'[0-9]'))) return 'Debe contener un número';
+                        return 'Debe contener un símbolo';
+                      }
                       return null;
                     },
                   ),
-                  const SizedBox(height: 8),
+                 
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _passwordController,
+                    builder: (context, value, child) {
+                      // Aquí usamos tu función con el texto actual que va escribiendo el usuario
+                      String nivel = _evaluarSeguridadContrasena(value.text);
+                      
+                    
+                      Color colorNivel = Colors.red;
+                      if (nivel == 'Fuerte') colorNivel = Colors.green;
+                      if (nivel == 'Media') colorNivel = Colors.orange;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'Seguridad de la contraseña: $nivel',
+                          style: GoogleFonts.spaceMono(
+                            color: value.text.isEmpty ? Colors.transparent : colorNivel,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
                   Text(
                     'Mínimo 8 caracteres, números y símbolos.',
                     style: GoogleFonts.spaceMono(
@@ -298,7 +301,28 @@ class _RegistroScreenState extends State<RegistroScreen> {
                       fontSize: 11,
                     ),
                   ),
+
+                  const SizedBox(height: 8),
+
+                 
+
+                   _buildTextField(
+                    label: 'Confirma tu Contraseña',
+                    controller: _confirmarPasswordController,
+                    hintText: '******',
+                    prefixIcon: Icons.lock_outline,
+                    isPassword: true,
+                    validator: (val) {
+                      if (val == null || val.isEmpty) return 'Confirma tu contraseña';
+                      if (val != _passwordController.text) return 'Las contraseñas no coinciden'; 
+                      return null;            
+        
+                    },
+                  ),
+
                   const SizedBox(height: 32),
+
+                  
 
                   // Botón Registrarse
                   _isLoading
@@ -310,7 +334,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                             foregroundColor: Colors.black,
                             minimumSize: const Size(double.infinity, 56),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(25),
                             ), 
                             elevation: 0,
                           ),
@@ -343,7 +367,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => context.pop(),
+                        onTap: () => context.go('/login'),
                         child: Text(
                           'Inicia Sesión',
                           style: GoogleFonts.inter(
