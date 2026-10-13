@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -67,33 +68,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 40),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.teal.shade700,
-                  child: const Icon(Icons.person, color: Colors.white),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Admin Usuario',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+            child: InkWell(
+              onTap: () {
+                context.push('/profile');
+              }, 
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.teal.shade700,
+                    child: const Icon(Icons.person, color: Colors.white),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Editar mi perfil',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Admin del Sistema',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
+                      Text(
+                        'Ajustes de cuenta',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 40),
