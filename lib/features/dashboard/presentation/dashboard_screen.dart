@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:go_router/go_router.dart';
+import '../../quinielas/presentation/quinielas_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  final int initialIndex;
+
+  const DashboardScreen({Key? key, this.initialIndex = 0}) : super(key: key);
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,24 +33,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
               backgroundColor: const Color(0xFF1E293B),
               elevation: 0,
               iconTheme: const IconThemeData(color: Colors.white),
-              title: const Text(
-                'Quiniela Deportiva',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              title: Text(
+                _selectedIndex == 1 ? 'Módulo de Quinielas' : 'TD Sport',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
-      drawer: isDesktop ? null : _buildSidebar(),
+      drawer: isDesktop ? null : Drawer(child: _buildSidebar()),
       body: Row(
         children: [
           if (isDesktop) _buildSidebar(),
           Expanded(
-            child: _buildMainContent(),
+            child: _buildCurrentView(),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildCurrentView() {
+    switch (_selectedIndex) {
+      case 1:
+        return const QuinielasScreen();
+      default:
+        return _buildMainContent();
+    }
+  }
+
   Widget _buildSidebar() {
+    final user = Supabase.instance.client.auth.currentUser;
+    final userName = user?.userMetadata?['nombre'] ?? user?.email?.split('@').first ?? 'Usuario';
+    final userEmail = user?.email ?? 'usuario@tdsport.com';
+
     return Container(
       width: 250,
       color: const Color(0xFF1E293B),
@@ -51,7 +75,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: const [
-                Icon(Icons.sports_soccer, color: Colors.white, size: 28),
+                Icon(Icons.sports_soccer, color: Color(0xFF3B82F6), size: 28),
                 SizedBox(width: 10),
                 Text(
                   'TD Sport',
@@ -64,46 +88,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 35),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: Colors.teal.shade700,
-                  child: const Icon(Icons.person, color: Colors.white),
+                  backgroundColor: const Color(0xFF3B82F6),
+                  child: Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
                 ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Admin Usuario',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        userName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Admin del Sistema',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
+                      Text(
+                        userEmail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 30),
           _buildNavItem(0, 'Panel Principal', Icons.dashboard),
-          _buildNavItem(1, 'Quinielas Activas', Icons.people),
+          _buildNavItem(1, 'Quinielas Activas', Icons.people_alt_rounded),
           _buildNavItem(2, 'Mis Pronósticos', Icons.sports),
           _buildNavItem(3, 'Ranking Global', Icons.emoji_events),
           _buildNavItem(4, 'Suscripción', Icons.star_border),
           const Spacer(),
           _buildNavItem(5, 'Configuraciones', Icons.settings),
+          _buildCerrarSesionItem(),
           const SizedBox(height: 20),
         ],
       ),
@@ -117,9 +152,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         setState(() {
           _selectedIndex = index;
         });
+        // Si estamos en móvil, cerramos el drawer
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF3B82F6) : Colors.transparent,
@@ -138,6 +177,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
               style: TextStyle(
                 color: isSelected ? Colors.white : Colors.white70,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCerrarSesionItem() {
+    return InkWell(
+      onTap: () async {
+        await Supabase.instance.client.auth.signOut();
+        if (mounted) {
+          context.go('/login');
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: const [
+            Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 20),
+            SizedBox(width: 15),
+            Text(
+              'Cerrar Sesión',
+              style: TextStyle(
+                color: Color(0xFFEF4444),
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -168,7 +238,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   SizedBox(height: 5),
                   Text(
-                    'Monitor de estado del sistema.',
+                    'Monitor de estado del sistema y acceso a quinielas.',
                     style: TextStyle(
                       color: Colors.white54,
                       fontSize: 14,
@@ -198,15 +268,97 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )
             ],
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 25),
+
+          // Banner de acceso directo a Quinielas
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E3A8A), Color(0xFF1E293B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        '¡Módulo de Quinielas Deportivo!',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'Crea una nueva quiniela con código de invitación único o únete a una existente con tu código.',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF3B82F6),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Crear Quiniela'),
+                      onPressed: () {
+                        setState(() {
+                          _selectedIndex = 1;
+                        });
+                      },
+                    ),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xFF10B981)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.group_add, color: Color(0xFF34D399), size: 18),
+                      label: const Text('Unirme'),
+                      onPressed: () {
+                        setState(() {
+                          _selectedIndex = 1;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 30),
+
           Wrap(
             spacing: 20,
             runSpacing: 20,
             children: [
-              _buildSummaryCard('TORNEOS', '2', 'Activos', Icons.emoji_events, const Color(0xFF10B981)),
-              _buildSummaryCard('PARTIDOS', '5', 'En vivo', Icons.sports_soccer, const Color(0xFF3B82F6)),
-              _buildSummaryCard('PENDIENTES', '1', 'Por verificar', Icons.assignment_late, const Color(0xFFEF4444), isWarning: true),
-              _buildSummaryCard('USUARIOS', '12', 'Registrados', Icons.people_outline, const Color(0xFFF59E0B)),
+              _buildSummaryCard('TORNEOS', '6', 'Activos', Icons.emoji_events, const Color(0xFF10B981)),
+              _buildSummaryCard('QUINIELAS', 'Activas', 'Ver módulo', Icons.people_alt, const Color(0xFF3B82F6), onTap: () {
+                setState(() => _selectedIndex = 1);
+              }),
+              _buildSummaryCard('PENDIENTES', '0', 'Por verificar', Icons.assignment_late, const Color(0xFFEF4444)),
+              _buildSummaryCard('USUARIOS', 'Online', 'Registrados', Icons.people_outline, const Color(0xFFF59E0B)),
             ],
           ),
           const SizedBox(height: 40),
@@ -234,64 +386,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildSummaryCard(String title, String value, String subtitle, IconData icon, Color iconColor, {bool isWarning = false}) {
-    return Container(
-      width: 250,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              Icon(icon, color: Colors.white54, size: 20),
-            ],
-          ),
-          const SizedBox(height: 15),
-          Text(
-            value,
-            style: TextStyle(
-              color: iconColor,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
+  Widget _buildSummaryCard(String title, String value, String subtitle, IconData icon, Color iconColor, {bool isWarning = false, VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        width: 250,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
             ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              if (isWarning) const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 14),
-              if (title == 'TORNEOS') const Icon(Icons.trending_up, color: Color(0xFF10B981), size: 14),
-              const SizedBox(width: 5),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: isWarning ? const Color(0xFFEF4444) : Colors.white54,
-                  fontSize: 12,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
                 ),
+                Icon(icon, color: Colors.white54, size: 20),
+              ],
+            ),
+            const SizedBox(height: 15),
+            Text(
+              value,
+              style: TextStyle(
+                color: iconColor,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          )
-        ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if (isWarning) const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 14),
+                if (title == 'TORNEOS') const Icon(Icons.trending_up, color: Color(0xFF10B981), size: 14),
+                const SizedBox(width: 5),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: isWarning ? const Color(0xFFEF4444) : Colors.white54,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            )
+          ],
+        ),
       ),
     );
   }
@@ -316,9 +472,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const Divider(color: Colors.white12, height: 1),
-          _buildActivityRow('Jornada 1', 'Torneo Creado', 'Éxito', const Color(0xFF10B981), '10:42 AM', Icons.add_circle_outline, const Color(0xFF3B82F6)),
-          _buildActivityRow('ID: #84', 'Cuotas', 'Procesado', Colors.grey, '10:15 AM', Icons.update, Colors.grey),
-          _buildActivityRow('ID: #85', 'Manual', 'Pendiente', const Color(0xFFEF4444), '09:55 AM', Icons.gavel, const Color(0xFFEF4444)),
+          _buildActivityRow('Liga Bantrab', 'Torneo Activo', 'En Curso', const Color(0xFF10B981), 'Hoy', Icons.emoji_events, const Color(0xFF3B82F6)),
+          _buildActivityRow('Módulo Quinielas', 'RPC Conectado', 'Activo', const Color(0xFF10B981), 'Ahora', Icons.check_circle, const Color(0xFF10B981)),
+          _buildActivityRow('Concacaf 2026', 'Torneo Activo', 'En Curso', const Color(0xFF10B981), 'Hoy', Icons.sports_soccer, const Color(0xFF3B82F6)),
         ],
       ),
     );
@@ -345,7 +501,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Icon(icon, color: iconBg, size: 16),
                 ),
                 const SizedBox(width: 15),
-                // Se agregó Expanded aquí para evitar el error de desbordamiento (Right Overflow)
                 Expanded(
                   child: Text(
                     event,

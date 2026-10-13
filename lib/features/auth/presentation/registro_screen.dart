@@ -16,13 +16,12 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _nombreController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmarPasswordController = TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  final _confirmarPasswordController = TextEditingController();
-  bool _obscureConfirmPassword = true;
 
   // Colors based on mockup
   final Color _bgColor = const Color(0xFF121212); // Fondo oscuro
@@ -37,6 +36,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     _nombreController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmarPasswordController.dispose();
     super.dispose();
   }
 
@@ -70,6 +70,36 @@ class _RegistroScreenState extends State<RegistroScreen> {
           ),
         );
         context.go('/dashboard');
+      } else if (error == 'REQUIERE_CONFIRMACION') {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: const [
+                Icon(Icons.mark_email_read_outlined, color: Color(0xFF10B981)),
+                SizedBox(width: 10),
+                Text('Verifica tu correo', style: TextStyle(color: Colors.white, fontSize: 18)),
+              ],
+            ),
+            content: Text(
+              'Hemos enviado un enlace de confirmación a ${_emailController.text.trim()}.\n\nPor favor abre tu correo, confirma tu cuenta e inicia sesión.',
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6)),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  context.go('/login');
+                },
+                child: const Text('Ir al Login', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(error), backgroundColor: Colors.red),

@@ -1,30 +1,48 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:tdsport_app/main.dart';
+import 'package:tdsport_app/features/quinielas/models/torneo_model.dart';
+import 'package:tdsport_app/features/quinielas/models/quiniela_model.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const TDSPORTApp());
+  group('Modelos del Módulo de Quinielas', () {
+    test('TorneoModel parsea JSON correctamente', () {
+      final json = {
+        'id': 'torneo-123',
+        'nombre': 'Liga Nacional 2026',
+        'estado_id': 2,
+        'fecha_inicio': '2026-08-01',
+        'fecha_fin': '2026-12-15',
+      };
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+      final torneo = TorneoModel.fromJson(json);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+      expect(torneo.id, 'torneo-123');
+      expect(torneo.nombre, 'Liga Nacional 2026');
+      expect(torneo.estadoId, 2);
+      expect(torneo.estadoTexto, 'En curso');
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('QuinielaModel parsea JSON correctamente', () {
+      final json = {
+        'id': 'quiniela-456',
+        'nombre': 'Quiniela Amigos',
+        'torneo_id': 'torneo-123',
+        'codigo_acceso': 'AMIGOS26',
+        'limite_usuarios': 15,
+        'creador_id': 'user-789',
+        'puntos_totales': 10,
+        'torneos': {
+          'nombre': 'Liga Nacional 2026',
+        },
+      };
+
+      final quiniela = QuinielaModel.fromJson(json);
+
+      expect(quiniela.id, 'quiniela-456');
+      expect(quiniela.nombre, 'Quiniela Amigos');
+      expect(quiniela.codigoAcceso, 'AMIGOS26');
+      expect(quiniela.limiteUsuarios, 15);
+      expect(quiniela.torneoNombre, 'Liga Nacional 2026');
+      expect(quiniela.puntosUsuario, 10);
+    });
   });
 }
