@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/theme/tds_colors.dart';
 import '../../../core/widgets/notificacion.dart';
+import '../../perfil/presentation/widgets/historial_resumen.dart';
 
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
@@ -118,9 +120,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
   }
 
   // Colores del dashboard
-  static const _fondo = Color(0xFF0F172A);
-  static const _superficie = Color(0xFF1E293B);
-  static const _acento = Color(0xFF3B82F6);
+  static const _fondo = TdsColors.fondo;
+  static const _superficie = TdsColors.superficie;
+  static const _acento = TdsColors.acento;
 
   // Mismo estilo de campos que el login, con la paleta del dashboard
   InputDecoration _decoracionCampo(String label, IconData icon) {
@@ -161,7 +163,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: Color(0xFFEF4444)),
+            icon: const Icon(Icons.logout, color: TdsColors.error),
             tooltip: 'Cerrar sesión',
             onPressed: _cerrarSesion,
           ),
@@ -170,7 +172,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Container(
+          child: Column(
+            children: [
+          Container(
             width: 400,
             padding: const EdgeInsets.all(30.0),
             decoration: BoxDecoration(
@@ -258,7 +262,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                           onPressed: _guardarPerfil,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _acento,
-                            foregroundColor: Colors.white,
+                            foregroundColor: TdsColors.sobreAcento, // texto negro sobre lima, como ENTRAR
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(25),
                             ),
@@ -271,6 +275,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
                       ),
               ],
             ),
+          ),
+              // Historial de quinielas (agregado debajo de la tarjeta de edición, sin modificarla)
+              const SizedBox(height: 24),
+              const SizedBox(width: 400, child: HistorialResumen()),
+            ],
           ),
         ),
       ),

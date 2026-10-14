@@ -2,52 +2,34 @@
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-//esta es una clase para el manejo de la autenticacion
+/// Resultado de un registro: con sesión (entra directo) o pendiente de confirmar el correo.
+enum ResultadoRegistro { conSesion, confirmarCorreo }
+
+// Lanza excepciones; la UI las convierte en texto con mensajeDeExcepcion().
 class AuthRepository {
-  final _supabase = Supabase.instance.client;
+  AuthRepository(this._db);
 
-  // esta parte de codigo es para iniciar sesion
-  Future<String?> iniciarSesion({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      final response = await _supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
+  final SupabaseClient _db;
 
-      if (response.session != null) {
-        return null;
-      }
-      return 'Error desconocido al iniciar sesión.';
-    } on AuthException catch (_) {
-      return 'Error: Correo o contraseña incorrectos.';
-    } catch (e) {
-      return 'Error de conexión. Inténtalo más tarde.';
-    }
+  /// La contraseña NO se recorta: los espacios son parte de ella.
+  Future<void> iniciarSesion({required String email, required String password}) async {
+    await _db.auth.signInWithPassword(email: email.trim(), password: password);
   }
 
-  Future<String?> registrarUsuario({
+  /// El perfil se crea con el trigger handle_new_user a partir de data.nombre.
+  Future<ResultadoRegistro> registrarUsuario({
     required String email,
     required String password,
     required String nombre,
   }) async {
-    try {
-      final response = await _supabase.auth.signUp(
-        email: email,
-        password: password,
-        data: {'nombre': nombre},
-      );
-
-      if (response.user != null) {
-        return null;
-      }
-      return 'Error desconocido al crear la cuenta.';
-    } on AuthException catch (e) {
-      return e.message;
-    } catch (e) {
-      return 'Error de conexión. Inténtalo más tarde.';
-    }
+    final response = await _db.auth.signUp(email: email.trim(), password: password, data: {'nombre': nombre.trim()});
+    // Con "confirmar correo" activo en Supabase, signUp devuelve usuario SIN sesión.
+    return response.session != null ? ResultadoRegistro.conSesion : ResultadoRegistro.confirmarCorreo;
   }
+
+  Future<void> recuperarContrasena(String email) async {
+    await _db.auth.resetPasswordForEmail(email.trim());
+  }
+
+  Future<void> cerrarSesion() => _db.auth.signOut();
 }

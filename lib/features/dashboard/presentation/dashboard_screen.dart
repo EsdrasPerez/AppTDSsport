@@ -1,150 +1,178 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+import '../../../core/router/rutas.dart';
+import '../../../core/theme/tds_colors.dart';
+import '../../../core/theme/tds_text.dart';
+import '../../../core/utils/formatos.dart';
+import '../../../core/widgets/tds_ui.dart';
+import '../../perfil/providers/perfil_providers.dart';
+import '../../quinielas/presentation/widgets/mis_quinielas_dashboard.dart';
+import '../../quinielas/providers/quinielas_providers.dart';
+import '../../suscripcion/presentation/widgets/pro_banner.dart';
+import '../../suscripcion/providers/suscripcion_providers.dart';
+import '../domain/evento_actividad.dart';
+import '../providers/dashboard_providers.dart';
+
+/// Panel principal (/inicio). La barra lateral la pone el shell (AppShell).
+class DashboardScreen extends ConsumerWidget {
+  const DashboardScreen({super.key});
+
+  Future<void> _recargar(WidgetRef ref) async {
+    ref
+      ..invalidate(perfilActualProvider)
+      ..invalidate(torneosActivosCountProvider)
+      ..invalidate(misPagosProvider)
+      ..invalidate(actividadRecienteProvider)
+      ..invalidate(misQuinielasProvider);
+    await ref.read(misQuinielasProvider.future);
+  }
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
-}
-
-class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedIndex = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width > 800;
-
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: isDesktop
-          ? null
-          : AppBar(
-              backgroundColor: const Color(0xFF1E293B),
-              elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.white),
-              title: const Text(
-                'Quiniela Deportiva',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-      drawer: isDesktop ? null : _buildSidebar(),
-      body: Row(
-        children: [
-          if (isDesktop) _buildSidebar(),
-          Expanded(
-            child: _buildMainContent(),
-          ),
-        ],
+      appBar: TdsAppBar(titulo: 'TDS SPORT', onRefrescar: () => _recargar(ref)),
+      body: RefreshIndicator(
+        onRefresh: () => _recargar(ref),
+        child: _buildMainContent(context, ref),
       ),
     );
   }
 
-  Widget _buildSidebar() {
-    return Container(
-      width: 250,
-      color: const Color(0xFF1E293B),
+  Widget _buildMainContent(BuildContext context, WidgetRef ref) {
+    final perfil = ref.watch(perfilActualProvider).valueOrNull;
+    final resumen = ref.watch(resumenDashboardProvider);
+    final torneos = ref.watch(torneosActivosCountProvider);
+
+    AsyncValue<int> campo(int Function(ResumenDashboard r) f) => resumen.whenData(f);
+
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(30.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(perfil == null ? 'Hola' : 'Hola, ${perfil.primerNombre}', style: TdsText.headline(28)),
+          const SizedBox(height: 5),
+          Text('Este es el resumen de tus quinielas.', style: TdsText.body(14, color: TdsColors.textoSecundario)),
           const SizedBox(height: 40),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: const [
-                Icon(Icons.sports_soccer, color: Colors.white, size: 28),
-                SizedBox(width: 10),
-                Text(
-                  'TD Sport',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 40),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: InkWell(
-              onTap: () {
-                context.push('/profile');
-              }, 
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: Colors.teal.shade700,
-                    child: const Icon(Icons.person, color: Colors.white),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        'Editar mi perfil',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        'Ajustes de cuenta',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+          Wrap(
+            spacing: 20,
+            runSpacing: 20,
+            children: [
+              _buildSummaryCard('TORNEOS', torneos, (_) => 'Activos', Icons.emoji_events,
+                  onTap: () => context.go(Rutas.partidos)),
+              _buildSummaryCard('EN VIVO', campo((r) => r.enVivo), (_) => 'En juego ahora', Icons.sensors,
+                  punto: TdsColors.error, onTap: () => context.go(Rutas.partidosEnVivo())),
+              _buildSummaryCard('POR PRONOSTICAR', campo((r) => r.porPronosticar), (_) => 'Pendientes',
+                  Icons.assignment_late, isWarning: true, onTap: () => context.go(Rutas.misPronosticosPendientes())),
+              _buildSummaryCard(
+                'MIS QUINIELAS',
+                campo((r) => r.activas),
+                (_) {
+                  final r = resumen.valueOrNull;
+                  return '${r?.porTorneo ?? 0} por torneo · ${r?.porPartido ?? 0} por partido';
+                },
+                Icons.people_outline,
+                onTap: () => context.go(Rutas.quinielas),
               ),
-            ),
+            ],
           ),
           const SizedBox(height: 40),
-          _buildNavItem(0, 'Panel Principal', Icons.dashboard),
-          _buildNavItem(1, 'Quinielas Activas', Icons.people),
-          _buildNavItem(2, 'Mis Pronósticos', Icons.sports),
-          _buildNavItem(3, 'Ranking Global', Icons.emoji_events),
-          _buildNavItem(4, 'Suscripción', Icons.star_border),
-          const Spacer(),
-          _buildNavItem(5, 'Configuraciones', Icons.settings),
+          const ProBanner(),
+          const SizedBox(height: 40),
+          const MisQuinielasDashboard(),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Actividad Reciente', style: TdsText.headline(20)),
+              TextButton(
+                onPressed: () => context.go(Rutas.misPronosticos),
+                child: Text('Ver todo ➔', style: TdsText.label(14, color: TdsColors.acento)),
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
+          _buildActivityTable(context, ref),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem(int index, String title, IconData icon) {
-    final isSelected = _selectedIndex == index;
+  /// Tarjeta de resumen: esqueleto mientras carga y "—" si falla, sin romper el resto.
+  Widget _buildSummaryCard(
+    String title,
+    AsyncValue<int> valor,
+    String Function(int n) subtitle,
+    IconData icon, {
+    bool isWarning = false,
+    Color? punto,
+    VoidCallback? onTap,
+  }) {
+    final n = valor.valueOrNull;
+    final alerta = isWarning && (n ?? 0) > 0;
+    final color = alerta ? TdsColors.advertencia : TdsColors.acento;
+
     return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedIndex = index;
-        });
-      },
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        width: 250,
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF3B82F6) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          color: TdsColors.superficie,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [BoxShadow(color: TdsColors.sombra, blurRadius: 10, offset: Offset(0, 5))],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : Colors.white70,
-              size: 20,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Text(title, style: TdsText.label(12, color: TdsColors.textoSecundario, letterSpacing: 1.2)),
+                ),
+                Icon(icon, color: TdsColors.textoSecundario, size: 20),
+              ],
             ),
-            const SizedBox(width: 15),
-            Text(
-              title,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white70,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
+            const SizedBox(height: 15),
+            SizedBox(
+              height: 36,
+              child: valor.isLoading && n == null
+                  ? Align(
+                      alignment: Alignment.centerLeft,
+                      child: TdsPulse(
+                        child: Container(
+                          width: 56,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: TdsColors.superficieAlta,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    )
+                  : Text(n == null ? '—' : '$n', style: TdsText.stats(32, color: color)),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if (punto != null && (n ?? 0) > 0) ...[TdsDot(color: punto, pulse: true), const SizedBox(width: 6)],
+                if (alerta) ...[
+                  const Icon(Icons.warning_amber_rounded, color: TdsColors.advertencia, size: 14),
+                  const SizedBox(width: 4),
+                ],
+                Flexible(
+                  child: Text(
+                    n == null ? ' ' : subtitle(n),
+                    overflow: TextOverflow.ellipsis,
+                    style: TdsText.body(12, color: alerta ? TdsColors.advertencia : TdsColors.textoSecundario),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -152,243 +180,113 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMainContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(30.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Resumen General',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 5),
-                  Text(
-                    'Monitor de estado del sistema.',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Sistema en Línea',
-                    style: TextStyle(
-                      color: Color(0xFF10B981),
-                      fontWeight: FontWeight.bold,
-                    ),
+  Widget _buildActivityTable(BuildContext context, WidgetRef ref) {
+    final actividad = ref.watch(actividadRecienteProvider);
+    final encabezado = TdsText.label(12, color: TdsColors.textoSecundario);
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(color: TdsColors.superficie, borderRadius: BorderRadius.circular(24)),
+      child: actividad.when(
+        skipLoadingOnRefresh: true,
+        loading: () => const Padding(padding: EdgeInsets.all(24), child: CargandoView()),
+        error: (e, _) => ErrorView.desde(e, onReintentar: () => ref.invalidate(actividadRecienteProvider)),
+        data: (eventos) => eventos.isEmpty
+            ? VacioView(
+                icono: Icons.history,
+                texto: 'Aún no tienes actividad. Únete a una quiniela para empezar.',
+                compacto: true,
+                acciones: [
+                  TdsPillButton(
+                    icon: Icons.group_add_outlined,
+                    label: 'Unirse con código',
+                    primary: true,
+                    onTap: () => context.push(Rutas.quinielaUnirse),
                   ),
                 ],
               )
-            ],
-          ),
-          const SizedBox(height: 40),
-          Wrap(
-            spacing: 20,
-            runSpacing: 20,
-            children: [
-              _buildSummaryCard('TORNEOS', '2', 'Activos', Icons.emoji_events, const Color(0xFF10B981)),
-              _buildSummaryCard('PARTIDOS', '5', 'En vivo', Icons.sports_soccer, const Color(0xFF3B82F6)),
-              _buildSummaryCard('PENDIENTES', '1', 'Por verificar', Icons.assignment_late, const Color(0xFFEF4444), isWarning: true),
-              _buildSummaryCard('USUARIOS', '12', 'Registrados', Icons.people_outline, const Color(0xFFF59E0B)),
-            ],
-          ),
-          const SizedBox(height: 40),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Actividad Reciente',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                    child: Row(
+                      children: [
+                        Expanded(flex: 3, child: Text('EVENTO', style: encabezado)),
+                        Expanded(flex: 2, child: Text('TIPO', style: encabezado)),
+                        Expanded(flex: 2, child: Text('ESTADO', style: encabezado)),
+                        Expanded(child: Text('FECHA', style: encabezado, textAlign: TextAlign.right)),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  for (final e in eventos) _buildActivityRow(context, e),
+                ],
               ),
-              TextButton(
-                onPressed: () {},
-                child: const Text('Ver Todo ➔', style: TextStyle(color: Color(0xFF3B82F6))),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _buildActivityTable(),
-        ],
       ),
     );
   }
 
-  Widget _buildSummaryCard(String title, String value, String subtitle, IconData icon, Color iconColor, {bool isWarning = false}) {
-    return Container(
-      width: 250,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
+  static const _iconos = {
+    TipoEvento.pronostico: Icons.edit_note,
+    TipoEvento.resultado: Icons.scoreboard_outlined,
+    TipoEvento.quiniela: Icons.group_add_outlined,
+    TipoEvento.quinielaFinalizada: Icons.emoji_events_outlined,
+    TipoEvento.suscripcion: Icons.workspace_premium,
+  };
+
+  Widget _buildActivityRow(BuildContext context, EventoActividad e) {
+    final statusColor = e.positivo ? TdsColors.exito : TdsColors.textoSecundario;
+
+    return InkWell(
+      onTap: e.quinielaId == null ? null : () => context.push(Rutas.quiniela(e.quinielaId!)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: TdsColors.borde, width: 1))),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(_iconos[e.tipo], color: statusColor, size: 16),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(child: Text(e.titulo, overflow: TextOverflow.ellipsis, style: TdsText.label(13))),
+                ],
               ),
-              Icon(icon, color: Colors.white54, size: 20),
-            ],
-          ),
-          const SizedBox(height: 15),
-          Text(
-            value,
-            style: TextStyle(
-              color: iconColor,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
             ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              if (isWarning) const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 14),
-              if (title == 'TORNEOS') const Icon(Icons.trending_up, color: Color(0xFF10B981), size: 14),
-              const SizedBox(width: 5),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: isWarning ? const Color(0xFFEF4444) : Colors.white54,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActivityTable() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-            child: Row(
-              children: const [
-                Expanded(flex: 3, child: Text('EVENTO', style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 2, child: Text('TIPO', style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 2, child: Text('ESTADO', style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 1, child: Text('HORA', style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold), textAlign: TextAlign.right,)),
-              ],
+            Expanded(
+              flex: 2,
+              child: Text(e.tipoTexto,
+                  overflow: TextOverflow.ellipsis, style: TdsText.body(13, color: TdsColors.textoSecundario)),
             ),
-          ),
-          const Divider(color: Colors.white12, height: 1),
-          _buildActivityRow('Jornada 1', 'Torneo Creado', 'Éxito', const Color(0xFF10B981), '10:42 AM', Icons.add_circle_outline, const Color(0xFF3B82F6)),
-          _buildActivityRow('ID: #84', 'Cuotas', 'Procesado', Colors.grey, '10:15 AM', Icons.update, Colors.grey),
-          _buildActivityRow('ID: #85', 'Manual', 'Pendiente', const Color(0xFFEF4444), '09:55 AM', Icons.gavel, const Color(0xFFEF4444)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActivityRow(String event, String type, String status, Color statusColor, String time, IconData icon, Color iconBg) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.white12, width: 1)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
+            Expanded(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: iconBg.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
+                    color: statusColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.5)),
                   ),
-                  child: Icon(icon, color: iconBg, size: 16),
-                ),
-                const SizedBox(width: 15),
-                // Se agregó Expanded aquí para evitar el error de desbordamiento (Right Overflow)
-                Expanded(
-                  child: Text(
-                    event,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(type, style: const TextStyle(color: Colors.white70)),
-          ),
-          Expanded(
-            flex: 2,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusColor.withOpacity(0.5)),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
+                  child: Text(e.estado, style: TdsText.label(12, color: statusColor)),
                 ),
               ),
             ),
-          ),
-          Expanded(
-            flex: 1,
-            child: Text(time, style: const TextStyle(color: Colors.white70), textAlign: TextAlign.right),
-          ),
-        ],
+            Expanded(
+              child: Text(Formatos.relativo(e.fecha),
+                  textAlign: TextAlign.right, style: TdsText.body(12, color: TdsColors.textoSecundario)),
+            ),
+          ],
+        ),
       ),
     );
   }
