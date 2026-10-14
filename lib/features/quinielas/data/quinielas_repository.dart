@@ -61,15 +61,42 @@ class QuinielasRepository {
           throw const MensajeUsuario('Las quinielas por partido todavía no están disponibles.');
         }
         return conRespaldo(
-          () async => leer(await _db.rpc('crear_quiniela', params: {
-                'p_torneo': torneoId,
+          // Firma del proyecto en la nube (la usa también ModuloQuinielasRepository)
+          () async => _leerCreada(await _db.rpc('crear_quiniela', params: {
                 'p_nombre': nombre,
+                'p_torneo_id': torneoId,
                 'p_limite': limiteUsuarios,
               })),
-          () => _crearQuinielaSinRpc(torneoId: torneoId, nombre: nombre, limiteUsuarios: limiteUsuarios),
+          () => conRespaldo(
+            () async => leer(await _db.rpc('crear_quiniela', params: {
+                  'p_torneo': torneoId,
+                  'p_nombre': nombre,
+                  'p_limite': limiteUsuarios,
+                })),
+            () => _crearQuinielaSinRpc(torneoId: torneoId, nombre: nombre, limiteUsuarios: limiteUsuarios),
+          ),
         );
       },
     );
+  }
+
+  /// crear_quiniela de la nube puede devolver solo el código (texto) o un objeto.
+  Future<({String id, String codigo})> _leerCreada(dynamic res) async {
+    if (res is Map) {
+      if (res['success'] == false) {
+        throw MensajeUsuario((res['mensaje'] ?? res['error'] ?? 'No se pudo crear la quiniela.').toString());
+      }
+      final codigo = (res['codigo_acceso'] ?? res['codigo']).toString();
+      final id = res['quiniela_id'] ?? res['id'];
+      if (id != null) return (id: id.toString(), codigo: codigo);
+      return _idPorCodigo(codigo);
+    }
+    return _idPorCodigo(res.toString().trim());
+  }
+
+  Future<({String id, String codigo})> _idPorCodigo(String codigo) async {
+    final q = await _db.from('quinielas').select('id').eq('codigo_acceso', codigo).single();
+    return (id: q['id'].toString(), codigo: codigo);
   }
 
   /// Camino anterior (dos llamadas, no atómico). Solo si no hay ninguna migración aplicada.
@@ -108,7 +135,7 @@ class QuinielasRepository {
     _usuarioId;
     final res = await _db.rpc('join_quiniela', params: {'codigo_ingresado': codigo.trim().toUpperCase()});
     if (res is Map && res['success'] == true) return res['quiniela_id'].toString();
-    throw MensajeUsuario((res is Map ? res['error'] as String? : null) ?? 'No se pudo unir a la quiniela.');
+    throw MensajeUsuario((res is Map ? (res['error'] ?? res['mensaje'] ?? res['message'])?.toString() : null) ?? 'No se pudo unir a la quiniela.');
   }
 
   /// Alfabeto sin 0/O ni 1/I (join_quiniela compara en mayúsculas).
@@ -128,12 +155,14 @@ class QuinielasRepository {
   /// 4 consultas en total: mis quinielas, sus miembros, partidos y mis pronósticos.
   /// `quinielas(*)` para leer tipo y partido_id si la migración 03 ya está aplicada.
   Future<List<ResumenQuiniela>> obtenerMisQuinielas(String usuarioId) async {
+    // `*`: unido_en / creado_en existen en la base local pero no en el proyecto en la nube
     final mias = await _db
         .from('quiniela_usuarios')
-        .select('puntos_totales, unido_en, quinielas ( *, torneos ( nombre ) )')
-        .eq('usuario_id', usuarioId)
-        .order('unido_en', ascending: false);
+        .select('*, quinielas ( *, torneos ( * ) )')
+        .eq('usuario_id', usuarioId);
     if (mias.isEmpty) return [];
+    DateTime fechaDe(Map m) => DateTime.tryParse(m['unido_en'] ?? m['quinielas']['creado_en'] ?? '') ?? DateTime(0);
+    mias.sort((a, b) => fechaDe(b).compareTo(fechaDe(a)));
 
     final quinielaIds = [for (final m in mias) m['quinielas']['id'].toString()];
     final torneoIds = {for (final m in mias) m['quinielas']['torneo_id'].toString()}.toList();
@@ -141,11 +170,7 @@ class QuinielasRepository {
     final (miembros, partidos, pronosticos) = await (
       _db.from('quiniela_usuarios').select('quiniela_id, puntos_totales').inFilter('quiniela_id', quinielaIds),
       _partidos.obtenerPartidos(torneoIds: torneoIds),
-      _db
-          .from('pronosticos')
-          .select('quiniela_id, partido_id, pred_goles_local, pred_goles_visitante, puntos_obtenidos, actualizado_en')
-          .eq('usuario_id', usuarioId)
-          .inFilter('quiniela_id', quinielaIds),
+      _db.from('pronosticos').select('*').eq('usuario_id', usuarioId).inFilter('quiniela_id', quinielaIds),
     ).wait;
 
     return mias.map((m) {
@@ -165,7 +190,7 @@ class QuinielasRepository {
         creadorId: q['creador_id'].toString(),
         torneoId: torneoId,
         torneoNombre: q['torneos']?['nombre'] ?? 'Torneo',
-        torneoActivo: q['torneos']?['estado_activo'] ?? true,
+        torneoActivo: torneoEstaActivo(q['torneos']),
         tipo: tipo,
         partidoId: partidoId,
         puntos: m['puntos_totales'] as int? ?? 0,
@@ -185,7 +210,7 @@ class QuinielasRepository {
   /// Quiniela + sus partidos + posiciones + mis pronósticos, en paralelo.
   Future<DetalleQuiniela> obtenerDetalle(String quinielaId, String? miId) async {
     final quiniela = QuinielaDetalle.fromMap(
-      await _db.from('quinielas').select('*, torneos ( nombre )').eq('id', quinielaId).single(),
+      await _db.from('quinielas').select('*, torneos ( * )').eq('id', quinielaId).single(),
     );
 
     final (partidos, posiciones, pronosticos) = await (
@@ -259,11 +284,8 @@ class QuinielasRepository {
   /// Pronósticos de un usuario en la quiniela, por partido.
   /// RLS: los propios, o los de otros miembros si el usuario es PRO vigente (migración 03).
   Future<Map<String, Pronostico>> obtenerPronosticos(String quinielaId, String usuarioId) async {
-    final response = await _db
-        .from('pronosticos')
-        .select('partido_id, pred_goles_local, pred_goles_visitante, puntos_obtenidos, actualizado_en')
-        .eq('quiniela_id', quinielaId)
-        .eq('usuario_id', usuarioId);
+    final response =
+        await _db.from('pronosticos').select('*').eq('quiniela_id', quinielaId).eq('usuario_id', usuarioId);
 
     return {for (final r in response) r['partido_id'].toString(): Pronostico.fromMap(r)};
   }
@@ -271,29 +293,25 @@ class QuinielasRepository {
   /// Pronósticos de TODOS los participantes para un partido de una quiniela, por usuario.
   /// La RLS decide qué se devuelve: un gratis solo recibe el suyo.
   Future<Map<String, Pronostico>> obtenerPronosticosDePartido(String quinielaId, String partidoId) async {
-    final response = await _db
-        .from('pronosticos')
-        .select('usuario_id, partido_id, pred_goles_local, pred_goles_visitante, puntos_obtenidos, actualizado_en')
-        .eq('quiniela_id', quinielaId)
-        .eq('partido_id', partidoId);
+    final response =
+        await _db.from('pronosticos').select('*').eq('quiniela_id', quinielaId).eq('partido_id', partidoId);
 
     return {for (final r in response) r['usuario_id'].toString(): Pronostico.fromMap(r)};
   }
 
   /// Últimos pronósticos del usuario con su partido (actividad reciente).
   Future<List<PronosticoReciente>> obtenerPronosticosRecientes(String usuarioId, {int limite = 5}) async {
-    final response = await _db
-        .from('pronosticos')
-        .select('partido_id, pred_goles_local, pred_goles_visitante, puntos_obtenidos, actualizado_en, '
-            'partidos ( $selectPartido )')
-        .eq('usuario_id', usuarioId)
-        .order('actualizado_en', ascending: false)
-        .limit(limite);
+    // Sin .order('actualizado_en'): esa columna no existe en el proyecto en la nube; se ordena aquí
+    final response =
+        await _db.from('pronosticos').select('*, partidos ( $selectPartido )').eq('usuario_id', usuarioId);
 
-    return [
+    final recientes = [
       for (final r in response)
         PronosticoReciente(partido: Partido.fromMap(r['partidos']), pronostico: Pronostico.fromMap(r)),
     ];
+    DateTime fecha(PronosticoReciente p) => p.pronostico.actualizadoEn ?? p.partido.fecha ?? DateTime(0);
+    recientes.sort((a, b) => fecha(b).compareTo(fecha(a)));
+    return recientes.take(limite).toList();
   }
 
   // ---------------------------------------------------------------------------
@@ -328,16 +346,21 @@ class QuinielasRepository {
     required int golesLocal,
     required int golesVisitante,
   }) async {
-    await _db.from('pronosticos').upsert(
-      {
-        'usuario_id': _usuarioId,
-        'partido_id': partidoId,
-        'quiniela_id': quinielaId,
-        'pred_goles_local': golesLocal,
-        'pred_goles_visitante': golesVisitante,
-        'actualizado_en': DateTime.now().toUtc().toIso8601String(),
-      },
-      onConflict: 'usuario_id,partido_id,quiniela_id',
-    );
+    final datos = {
+      'usuario_id': _usuarioId,
+      'partido_id': partidoId,
+      'quiniela_id': quinielaId,
+      'pred_goles_local': golesLocal,
+      'pred_goles_visitante': golesVisitante,
+      'actualizado_en': DateTime.now().toUtc().toIso8601String(),
+    };
+    try {
+      await _db.from('pronosticos').upsert(datos, onConflict: 'usuario_id,partido_id,quiniela_id');
+    } on PostgrestException catch (e) {
+      // El proyecto en la nube no tiene la columna actualizado_en
+      if (e.code != 'PGRST204' && e.code != '42703') rethrow;
+      datos.remove('actualizado_en');
+      await _db.from('pronosticos').upsert(datos, onConflict: 'usuario_id,partido_id,quiniela_id');
+    }
   }
 }

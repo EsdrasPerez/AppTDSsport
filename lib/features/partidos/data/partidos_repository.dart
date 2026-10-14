@@ -10,7 +10,7 @@ const selectPartido = '''
   goles_local,
   goles_visitante,
   estado_id,
-  torneos ( id, nombre ),
+  torneos ( * ),
   local:equipos!local_id ( id, nombre, escudo_url ),
   visitante:equipos!visitante_id ( id, nombre, escudo_url )
 ''';
@@ -31,30 +31,18 @@ class PartidosRepository {
     return response.map(Partido.fromMap).toList();
   }
 
+  /// Torneos activos. El filtro se hace aquí porque la base local usa `estado_activo`
+  /// y el proyecto en la nube `estado_id` (ver torneoEstaActivo).
   Future<List<Torneo>> obtenerTorneosActivos() async {
+    List<Map<String, dynamic>> response;
     try {
-      final response = await _db
-          .from('torneos')
-          .select('id, nombre, formato, estado_activo')
-          .eq('estado_activo', true)
-          .order('nombre');
-      return response.map(Torneo.fromMap).toList();
-    } catch (_) {
-      final response = await _db
-          .from('torneos')
-          .select('id, nombre, formato')
-          .order('nombre');
-      return response.map(Torneo.fromMap).toList();
+      // En la nube el formato es un catálogo (formatos_torneo)
+      response = await _db.from('torneos').select('*, formatos_torneo ( nombre )').order('nombre');
+    } on PostgrestException {
+      response = await _db.from('torneos').select('*').order('nombre');
     }
+    return response.map(Torneo.fromMap).where((t) => t.activo).toList();
   }
 
-  Future<int> contarTorneosActivos() async {
-    try {
-      final response = await _db.from('torneos').select('id').eq('estado_activo', true).count(CountOption.exact);
-      return response.count;
-    } catch (_) {
-      final response = await _db.from('torneos').select('id').count(CountOption.exact);
-      return response.count;
-    }
-  }
+  Future<int> contarTorneosActivos() async => (await obtenerTorneosActivos()).length;
 }

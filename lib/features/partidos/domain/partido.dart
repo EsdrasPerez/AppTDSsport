@@ -39,6 +39,18 @@ class Equipo extends Equatable {
   List<Object?> get props => [id, nombre, escudoUrl];
 }
 
+/// ¿El torneo está activo? Sirve para los dos esquemas:
+/// - base local: columna `estado_activo` (sí/no);
+/// - proyecto en la nube: `estado_id` de estados_torneo (1 PRÓXIMO y 2 EN CURSO cuentan como activos).
+bool torneoEstaActivo(Map<String, dynamic>? torneo, {bool porDefecto = true}) {
+  if (torneo == null) return porDefecto;
+  final activo = torneo['estado_activo'];
+  if (activo is bool) return activo;
+  final estado = torneo['estado_id'];
+  if (estado is int) return estado == 1 || estado == 2;
+  return porDefecto;
+}
+
 class Torneo extends Equatable {
   const Torneo({required this.id, required this.nombre, required this.activo, this.formato});
 
@@ -50,8 +62,8 @@ class Torneo extends Equatable {
   factory Torneo.fromMap(Map<String, dynamic> map) => Torneo(
         id: map['id'].toString(),
         nombre: map['nombre'] ?? 'Torneo',
-        activo: map['estado_activo'] ?? false,
-        formato: map['formato'],
+        activo: torneoEstaActivo(map, porDefecto: false),
+        formato: map['formato'] ?? map['formatos_torneo']?['nombre'],
       );
 
   @override
@@ -91,7 +103,7 @@ class Partido extends Equatable {
       id: map['id'].toString(),
       torneoId: (map['torneo_id'] ?? torneo?['id']).toString(),
       torneo: torneo?['nombre'] ?? 'Torneo',
-      torneoActivo: torneo?['estado_activo'] ?? true,
+      torneoActivo: torneoEstaActivo(torneo),
       estado: EstadoPartido.fromId(map['estado_id'] as int?),
       local: Equipo.fromMap(map['local'], fallback: 'Local'),
       visitante: Equipo.fromMap(map['visitante'], fallback: 'Visitante'),

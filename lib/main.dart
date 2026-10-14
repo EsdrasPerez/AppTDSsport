@@ -24,6 +24,7 @@ import 'features/quinielas/presentation/mis_pronosticos_screen.dart';
 import 'features/quinielas/presentation/mis_quinielas_screen.dart';
 import 'features/quinielas/presentation/participante_screen.dart';
 import 'features/quinielas/presentation/quiniela_detalle_screen.dart';
+import 'features/quinielas/presentation/quinielas_screen.dart';
 import 'features/quinielas/presentation/rivales_screen.dart';
 import 'features/quinielas/presentation/unirse_quiniela_sheet.dart';
 import 'features/suscripcion/domain/pasarela_pago.dart';
@@ -34,14 +35,20 @@ import 'features/suscripcion/presentation/suscripcion_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Cargar las variables de entorno ANTES de iniciar Supabase
-  await dotenv.load(fileName: ".env");
+  // 1. Cargar las variables de entorno si existen
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {}
 
-  // 2. Inicializar Supabase usando las variables seguras
+  // 2. Inicializar Supabase usando las variables seguras con fallback oficial
+  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? 'https://qtxxcundordklfclweuk.supabase.co';
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ??
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF0eHhjdW5kb3Jka2xmY2x3ZXVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNzM5NzcsImV4cCI6MjEwNTc0OTk3N30.kD-ABFS93-0ZwNNjhu-iVOtWNSea-ijkFGwIN_dgWdg';
+
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
+    url: supabaseUrl,
     // ignore: deprecated_member_use
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+    anonKey: supabaseAnonKey,
   );
 
   // ProviderScope: necesario para los providers (Riverpod)
@@ -139,6 +146,11 @@ final GoRouter _router = GoRouter(
                 key: state.pageKey,
                 child: UnirseQuinielaSheet(codigoInicial: state.uri.queryParameters['codigo']),
               ),
+            ),
+            // Módulo de quinielas (crear / unirse con pestañas)
+            GoRoute(
+              path: 'crear',
+              builder: (context, state) => const QuinielasScreen(tabInicial: 1),
             ),
             GoRoute(
               path: ':id',

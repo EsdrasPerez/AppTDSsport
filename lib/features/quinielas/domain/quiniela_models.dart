@@ -100,7 +100,7 @@ class QuinielaDetalle extends Equatable {
         limiteUsuarios: map['limite_usuarios'],
         torneoId: map['torneo_id'].toString(),
         torneoNombre: map['torneos']?['nombre'] ?? 'Torneo',
-        torneoActivo: map['torneos']?['estado_activo'] ?? true,
+        torneoActivo: torneoEstaActivo(map['torneos']),
         creadorId: map['creador_id'].toString(),
         tipo: TipoQuiniela.desdeCodigo(map['tipo'] as String?),
         partidoId: map['partido_id']?.toString(),

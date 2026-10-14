@@ -56,7 +56,9 @@ class DashboardScreen extends ConsumerWidget {
           Text(perfil == null ? 'Hola' : 'Hola, ${perfil.primerNombre}', style: TdsText.headline(28)),
           const SizedBox(height: 5),
           Text('Este es el resumen de tus quinielas.', style: TdsText.body(14, color: TdsColors.textoSecundario)),
-          const SizedBox(height: 40),
+          const SizedBox(height: 25),
+          _buildBannerQuinielas(context),
+          const SizedBox(height: 30),
           Wrap(
             spacing: 20,
             runSpacing: 20,
@@ -97,6 +99,68 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(height: 20),
           _buildActivityTable(context, ref),
         ],
+      ),
+    );
+  }
+
+  /// Banner de acceso directo a Quinielas: crear una nueva o unirse con código.
+  Widget _buildBannerQuinielas(BuildContext context) {
+    final titulo = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('¡Módulo de Quinielas Deportivo!', style: TdsText.headline(18)),
+        const SizedBox(height: 6),
+        Text(
+          'Crea una nueva quiniela con código de invitación único o únete a una existente con tu código.',
+          style: TdsText.body(13, color: TdsColors.textoSecundario),
+        ),
+      ],
+    );
+    final botones = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: TdsColors.acento,
+            foregroundColor: TdsColors.sobreAcento,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+          ),
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Crear Quiniela'),
+          onPressed: () => context.push(Rutas.quinielaNueva),
+        ),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: TdsColors.texto,
+            side: const BorderSide(color: TdsColors.acento),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+          ),
+          icon: const Icon(Icons.group_add, color: TdsColors.acento, size: 18),
+          label: const Text('Unirme'),
+          onPressed: () => context.push(Rutas.quinielaUnirse),
+        ),
+      ],
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [TdsColors.superficieAlta, TdsColors.superficie],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: TdsColors.acento.withValues(alpha: 0.3)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, c) => c.maxWidth < 560
+            ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [titulo, const SizedBox(height: 16), botones])
+            : Row(children: [Expanded(child: titulo), const SizedBox(width: 16), botones]),
       ),
     );
   }

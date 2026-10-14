@@ -17,6 +17,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
   final _telefonoController = TextEditingController();
   
   DateTime? _fechaNacimiento;
+  bool _tieneFechaNacimiento = true;
   bool _isLoading = false;
 
   @override
@@ -32,12 +33,14 @@ class _PerfilScreenState extends State<PerfilScreen> {
     try {
       final response = await Supabase.instance.client
           .from('perfiles') 
-          .select('nombre, telefono, fecha_nacimiento')
+          // '*': el proyecto en la nube no tiene la columna fecha_nacimiento
+          .select('*')
           .eq('id', user.id)
           .maybeSingle();
 
       if (response != null) {
         setState(() {
+          _tieneFechaNacimiento = response.containsKey('fecha_nacimiento');
           _nameController.text = response['nombre'] ?? '';
           _telefonoController.text = response['telefono'] ?? '';
           
@@ -94,7 +97,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
           .update({
             'nombre': newName,
             'telefono': newPhone,
-            'fecha_nacimiento': newDate,
+            if (_tieneFechaNacimiento) 'fecha_nacimiento': newDate,
           })
           .eq('id', user.id);
 

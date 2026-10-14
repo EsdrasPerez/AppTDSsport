@@ -47,5 +47,13 @@ String _mensajeAuth(AuthException e) => switch (e.code) {
       'validation_failed' => 'Revisa los datos ingresados.',
       'user_not_found' => 'No existe una cuenta con ese correo.',
       'session_expired' || 'refresh_token_not_found' => 'Tu sesión expiró. Inicia sesión de nuevo.',
-      _ => 'No se pudo completar la autenticación. Inténtalo de nuevo.',
+      _ => _mensajeAuthPorTexto(e.message.toLowerCase()),
     };
+
+/// Servidores sin código de error: se reconoce por el texto del mensaje.
+String _mensajeAuthPorTexto(String msg) {
+  if (msg.contains('email not confirmed')) return _mensajeAuth(AuthException('', code: 'email_not_confirmed'));
+  if (msg.contains('invalid login credentials')) return _mensajeAuth(AuthException('', code: 'invalid_credentials'));
+  if (msg.contains('already registered')) return _mensajeAuth(AuthException('', code: 'user_already_exists'));
+  return 'No se pudo completar la autenticación. Inténtalo de nuevo.';
+}

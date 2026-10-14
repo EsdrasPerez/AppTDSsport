@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/providers/auth_providers.dart';
 import '../../features/perfil/domain/perfil.dart';
 import '../../features/perfil/providers/perfil_providers.dart';
 import '../theme/tds_colors.dart';
@@ -154,6 +155,16 @@ class BarraLateral extends ConsumerWidget {
                 onTap: () => _ir(context, Rutas.admin),
               ),
             const Spacer(),
+            _Item(
+              opcion: const _Opcion('Cerrar sesión', Icons.logout_rounded, Rutas.login),
+              activa: false,
+              color: TdsColors.error,
+              onTap: () async {
+                await ref.read(authRepositoryProvider).cerrarSesion();
+                if (context.mounted) _ir(context, Rutas.login);
+              },
+            ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -162,16 +173,19 @@ class BarraLateral extends ConsumerWidget {
 }
 
 class _Item extends StatelessWidget {
-  const _Item({required this.opcion, required this.activa, required this.onTap, this.bloqueada = false});
+  const _Item({required this.opcion, required this.activa, required this.onTap, this.bloqueada = false, this.color});
 
   final _Opcion opcion;
   final bool activa;
   final bool bloqueada;
   final VoidCallback onTap;
 
+  /// Color del ícono y texto cuando no está activa (p. ej. rojo para "Cerrar sesión").
+  final Color? color;
+
   @override
   Widget build(BuildContext context) {
-    final color = activa ? TdsColors.sobreAcento : TdsColors.textoSecundario;
+    final color = activa ? TdsColors.sobreAcento : (this.color ?? TdsColors.textoSecundario);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       child: Material(
