@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/rutas.dart';
 import '../../../../core/theme/tds_colors.dart';
 import '../../../../core/theme/tds_text.dart';
 import '../../../../core/utils/formatos.dart';
@@ -159,6 +161,48 @@ class AvisoPronostico extends StatelessWidget {
         const SizedBox(width: 6),
         Text(texto, style: TdsText.label(12, color: color)),
       ],
+    );
+  }
+}
+
+/// Marcador ya guardado en una cuenta gratis: cambiarlo es un beneficio PRO/VIP.
+class AvisoEdicionPremium extends StatelessWidget {
+  const AvisoEdicionPremium({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: TdsColors.superficieAlta,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: TdsColors.acento.withValues(alpha: 0.4)),
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_outline, size: 16, color: TdsColors.acento),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text('Suscríbete a PRO para editar tu marcador',
+                    style: TdsText.label(12, color: TdsColors.texto)),
+              ),
+            ],
+          ),
+          TdsPillButton(
+            icon: Icons.star_border,
+            label: 'Suscribirme',
+            primary: true,
+            onTap: () => context.push(Rutas.suscripcion),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -12,6 +12,7 @@ import '../../../core/theme/tds_text.dart';
 import '../../../core/widgets/tds_ui.dart';
 import '../../partidos/domain/partido.dart';
 import '../../partidos/providers/partidos_providers.dart';
+import '../../perfil/providers/perfil_providers.dart';
 import '../domain/quiniela_models.dart';
 import '../providers/quinielas_acciones.dart';
 import '../providers/quinielas_providers.dart';
@@ -164,6 +165,8 @@ class _QuinielaDetalleScreenState extends ConsumerState<QuinielaDetalleScreen> w
             detalle: d,
             soloLectura: widget.soloLectura,
             partidoId: widget.partidoId,
+            // Cambiar un marcador ya guardado es beneficio PRO/VIP
+            puedeEditar: ref.watch(perfilActualProvider).valueOrNull?.esPro ?? false,
             onGuardar: _guardarPronostico,
             onRecargar: _recargar,
           );
@@ -179,11 +182,13 @@ class _Contenido extends StatelessWidget {
     required this.soloLectura,
     required this.onGuardar,
     required this.onRecargar,
+    required this.puedeEditar,
     this.partidoId,
   });
 
   final DetalleQuiniela detalle;
   final bool soloLectura;
+  final bool puedeEditar;
   final String? partidoId;
   final GuardarPronostico onGuardar;
   final Future<void> Function() onRecargar;
@@ -228,6 +233,7 @@ class _Contenido extends StatelessWidget {
                         pronosticos: d.misPronosticos,
                         onGuardar: onGuardar,
                         partidoElegido: partidoId,
+                        puedeEditar: puedeEditar,
                       ),
                     ),
                   _Lista(

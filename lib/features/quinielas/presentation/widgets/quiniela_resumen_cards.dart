@@ -10,6 +10,7 @@ import '../../../../core/utils/formatos.dart';
 import '../../../../core/widgets/tds_ui.dart';
 import '../../../partidos/domain/partido.dart';
 import '../../../partidos/presentation/widgets/estado_partido_pill.dart';
+import '../../../perfil/providers/perfil_providers.dart';
 import '../../domain/etiquetas_puntos.dart';
 import '../../domain/quiniela_models.dart';
 import '../../providers/quinielas_acciones.dart';
@@ -270,6 +271,8 @@ class _PartidosConBuscadorState extends ConsumerState<_PartidosConBuscador> {
   @override
   Widget build(BuildContext context) {
     final q = widget.quiniela;
+    // Cambiar un marcador ya guardado es beneficio PRO/VIP
+    final puedeEditar = ref.watch(perfilActualProvider).valueOrNull?.esPro ?? false;
     final coinciden = widget.partidos.where((p) => p.coincideConBusqueda(_busqueda)).toList();
     final buscando = _busqueda.trim().isNotEmpty;
     final ocultos = buscando ? 0 : coinciden.length - _aLaVista;
@@ -298,6 +301,7 @@ class _PartidosConBuscadorState extends ConsumerState<_PartidosConBuscador> {
             key: ValueKey(p.id),
             partido: p,
             pronostico: q.pronosticos[p.id],
+            puedeEditar: puedeEditar,
             // Misma acción que Mis pronósticos: guarda en pronosticos (usuario + quiniela + partido)
             onGuardar: q.activa
                 ? (p, l, v) => ref
@@ -321,7 +325,7 @@ class _PartidosConBuscadorState extends ConsumerState<_PartidosConBuscador> {
 
 /// Fila del desglose: estado + marcador, mi pronóstico y badge de puntos.
 class PronosticoFila extends StatelessWidget {
-  const PronosticoFila({super.key, required this.partido, this.pronostico, this.onGuardar});
+  const PronosticoFila({super.key, required this.partido, this.pronostico, this.onGuardar, this.puedeEditar = false});
 
   final Partido partido;
   final Pronostico? pronostico;
@@ -329,6 +333,9 @@ class PronosticoFila extends StatelessWidget {
   /// Con valor, el partido abierto muestra "Asignar marcador" / "Editar marcador" para poner
   /// los goles ahí mismo. null = solo lectura (historial).
   final GuardarPronostico? onGuardar;
+
+  /// Cuenta PRO/VIP: puede cambiar un marcador ya guardado. Gratis solo lo asigna la primera vez.
+  final bool puedeEditar;
 
   @override
   Widget build(BuildContext context) {
@@ -383,7 +390,7 @@ class PronosticoFila extends StatelessWidget {
             _contenido(p, partidoTexto, pr, fallado, acertando, badge),
             if (onGuardar != null && p.aceptaPronostico) ...[
               const SizedBox(height: 10),
-              _EditorMarcador(partido: p, pronostico: pr, onGuardar: onGuardar!),
+              _EditorMarcador(partido: p, pronostico: pr, onGuardar: onGuardar!, puedeEditar: puedeEditar),
             ],
           ],
         ),
@@ -429,11 +436,17 @@ class PronosticoFila extends StatelessWidget {
 /// Botón "Asignar marcador" / "Editar marcador" que abre, dentro de la misma fila, los campos de goles
 /// (local y visitante) con Guardar y Cancelar. Los campos solo aceptan enteros de 0 a 99.
 class _EditorMarcador extends StatefulWidget {
-  const _EditorMarcador({required this.partido, required this.pronostico, required this.onGuardar});
+  const _EditorMarcador({
+    required this.partido,
+    required this.pronostico,
+    required this.onGuardar,
+    required this.puedeEditar,
+  });
 
   final Partido partido;
   final Pronostico? pronostico;
   final GuardarPronostico onGuardar;
+  final bool puedeEditar;
 
   @override
   State<_EditorMarcador> createState() => _EditorMarcadorState();
@@ -493,6 +506,9 @@ class _EditorMarcadorState extends State<_EditorMarcador> {
   Widget build(BuildContext context) {
     final p = widget.partido;
     final tieneMarcador = widget.pronostico != null;
+
+    // Ya tiene marcador y la cuenta es gratis: bloqueado, con la invitación a suscribirse
+    if (tieneMarcador && !widget.puedeEditar) return const AvisoEdicionPremium();
 
     if (!_editando) {
       return Align(

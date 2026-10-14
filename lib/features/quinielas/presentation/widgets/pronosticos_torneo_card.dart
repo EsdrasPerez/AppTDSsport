@@ -23,6 +23,7 @@ class PronosticosTorneoCard extends StatefulWidget {
     this.limite,
     this.buscador = false,
     this.guardarPorPartido = false,
+    this.puedeEditar = false,
     this.partidoElegido,
   });
 
@@ -39,6 +40,9 @@ class PronosticosTorneoCard extends StatefulWidget {
 
   /// En vez de un botón para todos, "Guardar" aparece solo en el partido seleccionado.
   final bool guardarPorPartido;
+
+  /// Cuenta PRO/VIP: puede cambiar marcadores ya guardados. Gratis solo los asigna la primera vez.
+  final bool puedeEditar;
 
   /// Partido al que se llega desde Mis Quinielas: se resalta, se desplaza hasta él y
   /// su primer campo de goles queda listo para escribir.
@@ -113,6 +117,7 @@ class _PronosticosTorneoCardState extends State<PronosticosTorneoCard> {
     final v = _visitante[p.id]!.text;
     final pr = widget.pronosticos[p.id];
     return p.aceptaPronostico &&
+        (pr == null || widget.puedeEditar) &&
         l.isNotEmpty &&
         v.isNotEmpty &&
         (l != _guardado(pr?.golesLocal) || v != _guardado(pr?.golesVisitante));
@@ -255,6 +260,7 @@ class _PronosticosTorneoCardState extends State<PronosticosTorneoCard> {
           local: _local[visibles[i].id]!,
           visitante: _visitante[visibles[i].id]!,
           guardado: widget.pronosticos.containsKey(visibles[i].id),
+          bloqueadoPremium: !widget.puedeEditar && widget.pronosticos.containsKey(visibles[i].id),
           elegido: visibles[i].id == widget.partidoElegido,
           onChanged: () => setState(() => _seleccionado = visibles[i].id),
           onSeleccionar: () => setState(() => _seleccionado = visibles[i].id),
@@ -311,9 +317,13 @@ class _FilaPartido extends StatelessWidget {
     required this.guardado,
     required this.onChanged,
     this.elegido = false,
+    this.bloqueadoPremium = false,
     this.onSeleccionar,
     this.boton,
   });
+
+  /// Marcador guardado en cuenta gratis: campos bloqueados y aviso para suscribirse.
+  final bool bloqueadoPremium;
 
   final Partido partido;
   final TextEditingController local;
@@ -332,6 +342,7 @@ class _FilaPartido extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = partido;
     final abierto = p.aceptaPronostico;
+    final editable = abierto && !bloqueadoPremium;
 
     return Container(
       padding: EdgeInsets.symmetric(vertical: 12, horizontal: elegido ? 10 : 0),
@@ -371,7 +382,7 @@ class _FilaPartido extends StatelessWidget {
               ),
               GolesField(
                 controller: local,
-                enabled: abierto,
+                enabled: editable,
                 autofocus: elegido,
                 etiqueta: 'Goles de ${p.local.nombre}',
                 onChanged: onChanged,
@@ -383,7 +394,7 @@ class _FilaPartido extends StatelessWidget {
               ),
               GolesField(
                 controller: visitante,
-                enabled: abierto,
+                enabled: editable,
                 etiqueta: 'Goles de ${p.visitante.nombre}',
                 onChanged: onChanged,
                 onTap: onSeleccionar,
@@ -398,7 +409,10 @@ class _FilaPartido extends StatelessWidget {
               ),
             ],
           ),
-          if (boton != null) ...[
+          if (abierto && bloqueadoPremium) ...[
+            const SizedBox(height: 10),
+            const AvisoEdicionPremium(),
+          ] else if (boton != null) ...[
             const SizedBox(height: 10),
             Align(alignment: Alignment.centerRight, child: boton),
           ],

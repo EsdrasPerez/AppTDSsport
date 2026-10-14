@@ -68,6 +68,7 @@ void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 
   const gratis = Perfil(id: 'u1', nombre: 'José', esAdmin: false, plan: PlanUsuario.gratis);
+  const pro = Perfil(id: 'u1', nombre: 'José', esAdmin: false, plan: PlanUsuario.pro);
 
   testWidgets('Rivales: un usuario gratis ve la pantalla bloqueada', (tester) async {
     await tester.pumpWidget(_app(const RivalesScreen(), [
@@ -231,7 +232,8 @@ void main() {
     expect(find.text('Ver más (1)'), findsOneWidget);
   });
 
-  testWidgets('Mis Quinielas: asignar, guardar y editar el marcador dentro del partido, sin salir', (tester) async {
+  testWidgets('Mis Quinielas (PRO): asignar, guardar y editar el marcador dentro del partido, sin salir',
+      (tester) async {
     final repo = _RepoFalso();
     final p = partido(fecha: DateTime.now().add(const Duration(days: 1)));
     await tester.pumpWidget(_app(
@@ -248,6 +250,7 @@ void main() {
       [
         quinielasRepositoryProvider.overrideWithValue(repo),
         misQuinielasProvider.overrideWith((ref) async => [resumen(partidos: [p], pronosticos: {...repo.guardados})]),
+        perfilActualProvider.overrideWith((ref) async => pro),
       ],
     ));
     await tester.pumpAndSettle();

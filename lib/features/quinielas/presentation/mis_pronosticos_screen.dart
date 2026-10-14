@@ -9,6 +9,7 @@ import '../../../core/utils/formatos.dart';
 import '../../../core/widgets/tds_ui.dart';
 import '../../partidos/domain/partido.dart';
 import '../../partidos/presentation/widgets/estado_partido_pill.dart';
+import '../../perfil/providers/perfil_providers.dart';
 import '../domain/etiquetas_puntos.dart';
 import '../domain/quiniela_models.dart';
 import '../providers/quinielas_acciones.dart';
@@ -96,6 +97,7 @@ class _MisPronosticosScreenState extends ConsumerState<MisPronosticosScreen> {
     final aciertos = mios.where((p) => p.puntos > 0).length;
     final puntos = mios.fold(0, (s, p) => s + p.puntos);
     final faltan = pendientes.where((f) => f.pronostico == null).length;
+    final esPro = ref.watch(perfilActualProvider).valueOrNull?.esPro ?? false;
 
     return DefaultTabController(
       length: 3,
@@ -156,6 +158,7 @@ class _MisPronosticosScreenState extends ConsumerState<MisPronosticosScreen> {
                         limite: 2,
                         buscador: true,
                         guardarPorPartido: true,
+                        puedeEditar: esPro,
                         onGuardar: (p, l, v) => ref.read(quinielasAccionesProvider).guardarPronostico(
                             quinielaId: q.id, partidoId: p.id, golesLocal: l, golesVisitante: v),
                       );

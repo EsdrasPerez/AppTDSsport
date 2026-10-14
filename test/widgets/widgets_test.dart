@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tdsport_app/core/widgets/estado_carga.dart';
 import 'package:tdsport_app/core/widgets/tds_buttons.dart';
 import 'package:tdsport_app/features/partidos/domain/partido.dart';
+import 'package:tdsport_app/features/perfil/providers/perfil_providers.dart';
 import 'package:tdsport_app/features/quinielas/presentation/widgets/pronostico_card.dart';
 import 'package:tdsport_app/features/quinielas/presentation/widgets/pronosticos_torneo_card.dart';
 import 'package:tdsport_app/features/quinielas/presentation/widgets/quiniela_resumen_cards.dart';
 
 import '../helpers.dart';
 
-Widget _app(Widget child) => MaterialApp(home: Scaffold(body: SingleChildScrollView(child: child)));
+Widget _app(Widget child) => ProviderScope(
+      overrides: [perfilActualProvider.overrideWith((ref) async => null)],
+      child: MaterialApp(home: Scaffold(body: SingleChildScrollView(child: child))),
+    );
 
 void main() {
   // En pruebas no se descargan fuentes
@@ -97,7 +102,7 @@ void main() {
     final futuro = partido(fecha: DateTime.now().add(const Duration(days: 1)));
     await tester.pumpWidget(_app(Column(children: [
       PronosticoFila(partido: futuro, onGuardar: noOp),
-      PronosticoFila(partido: futuro, pronostico: pronostico('p1', 1, 0), onGuardar: noOp),
+      PronosticoFila(partido: futuro, pronostico: pronostico('p1', 1, 0), onGuardar: noOp, puedeEditar: true),
       // Ya empezó / ya pasó la hora / historial (sin onGuardar): sin botón
       PronosticoFila(partido: partido(estado: EstadoPartido.enVivo, gl: 0, gv: 0), onGuardar: noOp),
       PronosticoFila(partido: partido(fecha: DateTime.now().subtract(const Duration(minutes: 1))), onGuardar: noOp),
@@ -109,11 +114,43 @@ void main() {
     expect(find.byType(TextField), findsNothing);
   });
 
+  testWidgets('Cuenta gratis: asigna el marcador una vez; ya guardado queda bloqueado con "Suscribirme"',
+      (tester) async {
+    final futuro = partido(fecha: DateTime.now().add(const Duration(days: 1)));
+    await tester.pumpWidget(_app(Column(children: [
+      PronosticoFila(partido: futuro, onGuardar: noOp),
+      PronosticoFila(partido: futuro, pronostico: pronostico('p1', 1, 0), onGuardar: noOp),
+    ])));
+
+    expect(find.text('Asignar marcador'), findsOneWidget);
+    expect(find.text('Editar marcador'), findsNothing);
+    expect(find.text('Suscríbete a PRO para editar tu marcador'), findsOneWidget);
+    expect(find.text('Suscribirme'), findsOneWidget);
+  });
+
+  testWidgets('Tarjeta de partidos en cuenta gratis: el marcador guardado queda bloqueado; el nuevo no',
+      (tester) async {
+    final manana = DateTime.now().add(const Duration(days: 1));
+    await tester.pumpWidget(_app(PronosticosTorneoCard(
+      titulo: 'Liga',
+      partidos: [partido(id: 'a', fecha: manana), partido(id: 'b', fecha: manana)],
+      pronosticos: {'a': pronostico('a', 2, 1)},
+      onGuardar: noOp,
+    )));
+
+    final campos = tester.widgetList<TextField>(find.byType(TextField)).toList();
+    expect(campos.map((c) => c.enabled), [false, false, true, true]);
+    expect(find.text('Suscríbete a PRO para editar tu marcador'), findsOneWidget);
+  });
+
   testWidgets('Card de quiniela: 2 partidos a la vista y "Ver más" / "Ver menos" para el resto', (tester) async {
     final manana = DateTime.now().add(const Duration(days: 1));
     final q = resumen(partidos: [for (var i = 0; i < 5; i++) partido(id: 'p$i', fecha: manana)]);
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: ListView(children: [QuinielaDestacadaCard(quiniela: q)])),
+    await tester.pumpWidget(ProviderScope(
+      overrides: [perfilActualProvider.overrideWith((ref) async => null)],
+      child: MaterialApp(
+        home: Scaffold(body: ListView(children: [QuinielaDestacadaCard(quiniela: q)])),
+      ),
     ));
 
     // Sin tocar nada ya se ven 2 partidos
