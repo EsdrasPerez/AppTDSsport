@@ -114,7 +114,7 @@ void main() {
     expect(find.byType(TextField), findsNothing);
   });
 
-  testWidgets('Cuenta gratis: asigna el marcador una vez; ya guardado queda bloqueado con "Suscribirme"',
+  testWidgets('Cuenta gratis: asigna el marcador una vez; "Editar marcador" abre la ventanita para suscribirse',
       (tester) async {
     final futuro = partido(fecha: DateTime.now().add(const Duration(days: 1)));
     await tester.pumpWidget(_app(Column(children: [
@@ -122,10 +122,20 @@ void main() {
       PronosticoFila(partido: futuro, pronostico: pronostico('p1', 1, 0), onGuardar: noOp),
     ])));
 
+    // Sin mensajes a la vista: solo los botones de siempre
     expect(find.text('Asignar marcador'), findsOneWidget);
-    expect(find.text('Editar marcador'), findsNothing);
-    expect(find.text('Suscríbete a PRO para editar tu marcador'), findsOneWidget);
+    expect(find.text('Editar marcador'), findsOneWidget);
+    expect(find.text('Suscríbete para editar'), findsNothing);
+
+    await tester.tap(find.text('Editar marcador'));
+    await tester.pumpAndSettle();
+    expect(find.text('Suscríbete para editar'), findsOneWidget);
     expect(find.text('Suscribirme'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing); // no se abrieron los campos
+
+    await tester.tap(find.text('Ahora no'));
+    await tester.pumpAndSettle();
+    expect(find.text('Suscríbete para editar'), findsNothing);
   });
 
   testWidgets('Tarjeta de partidos en cuenta gratis: el marcador guardado queda bloqueado; el nuevo no',
@@ -140,7 +150,12 @@ void main() {
 
     final campos = tester.widgetList<TextField>(find.byType(TextField)).toList();
     expect(campos.map((c) => c.enabled), [false, false, true, true]);
-    expect(find.text('Suscríbete a PRO para editar tu marcador'), findsOneWidget);
+    // Solo un lápiz (el del marcador guardado); el mensaje sale al tocarlo
+    expect(find.text('Suscríbete para editar'), findsNothing);
+    expect(find.byType(LapizEditarPremium), findsOneWidget);
+    await tester.tap(find.byType(LapizEditarPremium));
+    await tester.pumpAndSettle();
+    expect(find.text('Suscríbete para editar'), findsOneWidget);
   });
 
   testWidgets('Card de quiniela: 2 partidos a la vista y "Ver más" / "Ver menos" para el resto', (tester) async {

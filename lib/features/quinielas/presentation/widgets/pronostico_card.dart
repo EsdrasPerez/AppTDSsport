@@ -165,44 +165,47 @@ class AvisoPronostico extends StatelessWidget {
   }
 }
 
-/// Marcador ya guardado en una cuenta gratis: cambiarlo es un beneficio PRO/VIP.
-class AvisoEdicionPremium extends StatelessWidget {
-  const AvisoEdicionPremium({super.key});
+/// Cuenta gratis que toca editar un marcador ya guardado: ventanita para suscribirse (beneficio PRO/VIP).
+Future<void> mostrarSuscribeteParaEditar(BuildContext context) {
+  return showDialog<void>(
+    context: context,
+    builder: (dialogo) => AlertDialog(
+      backgroundColor: TdsColors.superficie,
+      icon: const Icon(Icons.lock_outline, color: TdsColors.acento),
+      title: Text('Suscríbete para editar', textAlign: TextAlign.center, style: TdsText.headline(18)),
+      content: Text(
+        'Cambiar un marcador que ya guardaste es un beneficio PRO.',
+        textAlign: TextAlign.center,
+        style: TdsText.body(13, color: TdsColors.textoSecundario),
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(onPressed: () => Navigator.of(dialogo).pop(), child: const Text('Ahora no')),
+        TdsPillButton(
+          icon: Icons.star_border,
+          label: 'Suscribirme',
+          primary: true,
+          onTap: () {
+            Navigator.of(dialogo).pop();
+            context.push(Rutas.suscripcion);
+          },
+        ),
+      ],
+    ),
+  );
+}
+
+/// Lápiz de editar de un marcador ya guardado en cuenta gratis: abre la ventanita para suscribirse.
+class LapizEditarPremium extends StatelessWidget {
+  const LapizEditarPremium({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: TdsColors.superficieAlta,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: TdsColors.acento.withValues(alpha: 0.4)),
-      ),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 8,
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.lock_outline, size: 16, color: TdsColors.acento),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text('Suscríbete a PRO para editar tu marcador',
-                    style: TdsText.label(12, color: TdsColors.texto)),
-              ),
-            ],
-          ),
-          TdsPillButton(
-            icon: Icons.star_border,
-            label: 'Suscribirme',
-            primary: true,
-            onTap: () => context.push(Rutas.suscripcion),
-          ),
-        ],
-      ),
+    return IconButton(
+      tooltip: 'Editar marcador',
+      visualDensity: VisualDensity.compact,
+      icon: const Icon(Icons.edit_outlined, size: 18, color: TdsColors.textoSecundario),
+      onPressed: () => mostrarSuscribeteParaEditar(context),
     );
   }
 }

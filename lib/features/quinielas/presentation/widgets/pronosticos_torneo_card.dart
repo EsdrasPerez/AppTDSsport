@@ -322,7 +322,7 @@ class _FilaPartido extends StatelessWidget {
     this.boton,
   });
 
-  /// Marcador guardado en cuenta gratis: campos bloqueados y aviso para suscribirse.
+  /// Marcador guardado en cuenta gratis: campos bloqueados y lápiz que invita a suscribirse.
   final bool bloqueadoPremium;
 
   final Partido partido;
@@ -366,6 +366,7 @@ class _FilaPartido extends StatelessWidget {
                 const Icon(Icons.check_circle, size: 14, color: TdsColors.acento),
                 const SizedBox(width: 6),
               ],
+              if (abierto && bloqueadoPremium) const LapizEditarPremium(),
               EstadoPartidoPill(estado: p.estado),
             ],
           ),
@@ -409,10 +410,7 @@ class _FilaPartido extends StatelessWidget {
               ),
             ],
           ),
-          if (abierto && bloqueadoPremium) ...[
-            const SizedBox(height: 10),
-            const AvisoEdicionPremium(),
-          ] else if (boton != null) ...[
+          if (boton != null) ...[
             const SizedBox(height: 10),
             Align(alignment: Alignment.centerRight, child: boton),
           ],

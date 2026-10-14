@@ -507,9 +507,6 @@ class _EditorMarcadorState extends State<_EditorMarcador> {
     final p = widget.partido;
     final tieneMarcador = widget.pronostico != null;
 
-    // Ya tiene marcador y la cuenta es gratis: bloqueado, con la invitación a suscribirse
-    if (tieneMarcador && !widget.puedeEditar) return const AvisoEdicionPremium();
-
     if (!_editando) {
       return Align(
         alignment: Alignment.centerLeft,
@@ -517,7 +514,8 @@ class _EditorMarcadorState extends State<_EditorMarcador> {
           icon: tieneMarcador ? Icons.edit_note : Icons.edit_outlined,
           label: tieneMarcador ? 'Editar marcador' : 'Asignar marcador',
           primary: !tieneMarcador,
-          onTap: _abrir,
+          // Ya tiene marcador y la cuenta es gratis: en vez de editar, ventanita para suscribirse
+          onTap: tieneMarcador && !widget.puedeEditar ? () => mostrarSuscribeteParaEditar(context) : _abrir,
         ),
       );
     }
