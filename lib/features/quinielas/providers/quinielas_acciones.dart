@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../domain/quiniela_models.dart';
 import 'quinielas_providers.dart';
 
 /// Acciones sobre quinielas. Cada una invalida los providers afectados al terminar,
@@ -11,16 +10,12 @@ class QuinielasAcciones {
   final Ref _ref;
 
   Future<({String id, String codigo})> crear({
-    required TipoQuiniela tipo,
     required String torneoId,
-    String? partidoId,
     required String nombre,
     required int limiteUsuarios,
   }) async {
     final creada = await _ref.read(quinielasRepositoryProvider).crearQuiniela(
-          tipo: tipo,
           torneoId: torneoId,
-          partidoId: partidoId,
           nombre: nombre,
           limiteUsuarios: limiteUsuarios,
         );

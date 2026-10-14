@@ -35,12 +35,10 @@ class QuinielasRepository {
   // Crear / unirse
   // ---------------------------------------------------------------------------
 
-  /// Crea una quiniela (por torneo o por partido) con el usuario actual como creador y participante.
-  /// RPC crear_quiniela de 5 parámetros (migración 03), todo en una transacción.
+  /// Crea una quiniela del torneo con el usuario actual como creador y participante.
+  /// Solo existen quinielas por torneo; se prueba cada firma de crear_quiniela según el esquema.
   Future<({String id, String codigo})> crearQuiniela({
-    required TipoQuiniela tipo,
     required String torneoId,
-    String? partidoId,
     required String nombre,
     required int limiteUsuarios,
   }) {
@@ -48,35 +46,30 @@ class QuinielasRepository {
     ({String id, String codigo}) leer(dynamic r) => (id: r['id'].toString(), codigo: r['codigo_acceso'] as String);
 
     return conRespaldo(
+      // Firma de 5 parámetros (migración 03), todo en una transacción
       () async => leer(await _db.rpc('crear_quiniela', params: {
-            'p_tipo': tipo.codigo,
+            'p_tipo': 'TORNEO',
             'p_torneo': torneoId,
-            'p_partido': partidoId,
+            'p_partido': null,
             'p_nombre': nombre,
             'p_limite': limiteUsuarios,
           })),
-      () {
-        // Sin la migración 03 solo existen quinielas por torneo
-        if (tipo == TipoQuiniela.partido) {
-          throw const MensajeUsuario('Las quinielas por partido todavía no están disponibles.');
-        }
-        return conRespaldo(
-          // Firma del proyecto en la nube (la usa también ModuloQuinielasRepository)
-          () async => _leerCreada(await _db.rpc('crear_quiniela', params: {
+      () => conRespaldo(
+        // Firma del proyecto en la nube
+        () async => _leerCreada(await _db.rpc('crear_quiniela', params: {
+              'p_nombre': nombre,
+              'p_torneo_id': torneoId,
+              'p_limite': limiteUsuarios,
+            })),
+        () => conRespaldo(
+          () async => leer(await _db.rpc('crear_quiniela', params: {
+                'p_torneo': torneoId,
                 'p_nombre': nombre,
-                'p_torneo_id': torneoId,
                 'p_limite': limiteUsuarios,
               })),
-          () => conRespaldo(
-            () async => leer(await _db.rpc('crear_quiniela', params: {
-                  'p_torneo': torneoId,
-                  'p_nombre': nombre,
-                  'p_limite': limiteUsuarios,
-                })),
-            () => _crearQuinielaSinRpc(torneoId: torneoId, nombre: nombre, limiteUsuarios: limiteUsuarios),
-          ),
-        );
-      },
+          () => _crearQuinielaSinRpc(torneoId: torneoId, nombre: nombre, limiteUsuarios: limiteUsuarios),
+        ),
+      ),
     );
   }
 
@@ -153,7 +146,6 @@ class QuinielasRepository {
 
   /// Todas las quinielas del usuario (activas y finalizadas), más reciente primero.
   /// 4 consultas en total: mis quinielas, sus miembros, partidos y mis pronósticos.
-  /// `quinielas(*)` para leer tipo y partido_id si la migración 03 ya está aplicada.
   Future<List<ResumenQuiniela>> obtenerMisQuinielas(String usuarioId) async {
     // `*`: unido_en / creado_en existen en la base local pero no en el proyecto en la nube
     final mias = await _db
@@ -176,9 +168,7 @@ class QuinielasRepository {
     return mias.map((m) {
       final q = m['quinielas'];
       final id = q['id'].toString();
-      final tipo = TipoQuiniela.desdeCodigo(q['tipo'] as String?);
       final torneoId = q['torneo_id'].toString();
-      final partidoId = q['partido_id']?.toString();
 
       return ResumenQuiniela(
         id: id,
@@ -191,14 +181,12 @@ class QuinielasRepository {
         torneoId: torneoId,
         torneoNombre: q['torneos']?['nombre'] ?? 'Torneo',
         torneoActivo: torneoEstaActivo(q['torneos']),
-        tipo: tipo,
-        partidoId: partidoId,
         puntos: m['puntos_totales'] as int? ?? 0,
         puntosDeTodos: [
           for (final r in miembros)
             if (r['quiniela_id'].toString() == id) r['puntos_totales'] as int? ?? 0,
         ],
-        partidos: partidosDeQuiniela(tipo: tipo, torneoId: torneoId, partidoId: partidoId, partidos: partidos),
+        partidos: partidos.where((p) => p.torneoId == torneoId).toList(),
         pronosticos: {
           for (final r in pronosticos)
             if (r['quiniela_id'].toString() == id) r['partido_id'].toString(): Pronostico.fromMap(r),
@@ -221,12 +209,7 @@ class QuinielasRepository {
 
     return DetalleQuiniela(
       quiniela: quiniela,
-      partidos: partidosDeQuiniela(
-        tipo: quiniela.tipo,
-        torneoId: quiniela.torneoId,
-        partidoId: quiniela.partidoId,
-        partidos: partidos,
-      ),
+      partidos: partidos,
       posiciones: posiciones,
       misPronosticos: pronosticos,
       miId: miId,

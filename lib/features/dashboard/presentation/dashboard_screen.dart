@@ -22,7 +22,6 @@ class DashboardScreen extends ConsumerWidget {
   Future<void> _recargar(WidgetRef ref) async {
     ref
       ..invalidate(perfilActualProvider)
-      ..invalidate(torneosActivosCountProvider)
       ..invalidate(misPagosProvider)
       ..invalidate(actividadRecienteProvider)
       ..invalidate(misQuinielasProvider);
@@ -42,10 +41,6 @@ class DashboardScreen extends ConsumerWidget {
 
   Widget _buildMainContent(BuildContext context, WidgetRef ref) {
     final perfil = ref.watch(perfilActualProvider).valueOrNull;
-    final resumen = ref.watch(resumenDashboardProvider);
-    final torneos = ref.watch(torneosActivosCountProvider);
-
-    AsyncValue<int> campo(int Function(ResumenDashboard r) f) => resumen.whenData(f);
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -59,33 +54,10 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(height: 25),
           _buildBannerQuinielas(context),
           const SizedBox(height: 30),
-          Wrap(
-            spacing: 20,
-            runSpacing: 20,
-            children: [
-              _buildSummaryCard('TORNEOS', torneos, (_) => 'Activos', Icons.emoji_events,
-                  onTap: () => context.go(Rutas.partidos)),
-              _buildSummaryCard('EN VIVO', campo((r) => r.enVivo), (_) => 'En juego ahora', Icons.sensors,
-                  punto: TdsColors.error, onTap: () => context.go(Rutas.partidosEnVivo())),
-              _buildSummaryCard('POR PRONOSTICAR', campo((r) => r.porPronosticar), (_) => 'Pendientes',
-                  Icons.assignment_late, isWarning: true, onTap: () => context.go(Rutas.misPronosticosPendientes())),
-              _buildSummaryCard(
-                'MIS QUINIELAS',
-                campo((r) => r.activas),
-                (_) {
-                  final r = resumen.valueOrNull;
-                  return '${r?.porTorneo ?? 0} por torneo · ${r?.porPartido ?? 0} por partido';
-                },
-                Icons.people_outline,
-                onTap: () => context.go(Rutas.quinielas),
-              ),
-            ],
-          ),
-          const SizedBox(height: 40),
-          const ProBanner(),
-          const SizedBox(height: 40),
           const MisQuinielasDashboard(),
           const SizedBox(height: 24),
+          const ProBanner(),
+          const SizedBox(height: 40),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -103,7 +75,7 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  /// Banner de acceso directo a Quinielas: crear una nueva o unirse con código.
+  /// Banner de acceso directo a Quinielas: crear una nueva.
   Widget _buildBannerQuinielas(BuildContext context) {
     final titulo = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,17 +103,6 @@ class DashboardScreen extends ConsumerWidget {
           label: const Text('Crear Quiniela'),
           onPressed: () => context.push(Rutas.quinielaNueva),
         ),
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: TdsColors.texto,
-            side: const BorderSide(color: TdsColors.acento),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-          ),
-          icon: const Icon(Icons.group_add, color: TdsColors.acento, size: 18),
-          label: const Text('Unirme'),
-          onPressed: () => context.push(Rutas.quinielaUnirse),
-        ),
       ],
     );
 
@@ -165,85 +126,6 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  /// Tarjeta de resumen: esqueleto mientras carga y "—" si falla, sin romper el resto.
-  Widget _buildSummaryCard(
-    String title,
-    AsyncValue<int> valor,
-    String Function(int n) subtitle,
-    IconData icon, {
-    bool isWarning = false,
-    Color? punto,
-    VoidCallback? onTap,
-  }) {
-    final n = valor.valueOrNull;
-    final alerta = isWarning && (n ?? 0) > 0;
-    final color = alerta ? TdsColors.advertencia : TdsColors.acento;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        width: 250,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: TdsColors.superficie,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: const [BoxShadow(color: TdsColors.sombra, blurRadius: 10, offset: Offset(0, 5))],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(title, style: TdsText.label(12, color: TdsColors.textoSecundario, letterSpacing: 1.2)),
-                ),
-                Icon(icon, color: TdsColors.textoSecundario, size: 20),
-              ],
-            ),
-            const SizedBox(height: 15),
-            SizedBox(
-              height: 36,
-              child: valor.isLoading && n == null
-                  ? Align(
-                      alignment: Alignment.centerLeft,
-                      child: TdsPulse(
-                        child: Container(
-                          width: 56,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: TdsColors.superficieAlta,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    )
-                  : Text(n == null ? '—' : '$n', style: TdsText.stats(32, color: color)),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                if (punto != null && (n ?? 0) > 0) ...[TdsDot(color: punto, pulse: true), const SizedBox(width: 6)],
-                if (alerta) ...[
-                  const Icon(Icons.warning_amber_rounded, color: TdsColors.advertencia, size: 14),
-                  const SizedBox(width: 4),
-                ],
-                Flexible(
-                  child: Text(
-                    n == null ? ' ' : subtitle(n),
-                    overflow: TextOverflow.ellipsis,
-                    style: TdsText.body(12, color: alerta ? TdsColors.advertencia : TdsColors.textoSecundario),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildActivityTable(BuildContext context, WidgetRef ref) {
     final actividad = ref.watch(actividadRecienteProvider);
     final encabezado = TdsText.label(12, color: TdsColors.textoSecundario);
@@ -258,7 +140,7 @@ class DashboardScreen extends ConsumerWidget {
         data: (eventos) => eventos.isEmpty
             ? VacioView(
                 icono: Icons.history,
-                texto: 'Aún no tienes actividad. Únete a una quiniela para empezar.',
+                texto: 'Únete a la quiniela de un amigo.',
                 compacto: true,
                 acciones: [
                   TdsPillButton(

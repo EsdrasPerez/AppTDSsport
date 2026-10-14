@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/rutas.dart';
@@ -11,9 +12,11 @@ import '../../../partidos/domain/partido.dart';
 import '../../../partidos/presentation/widgets/estado_partido_pill.dart';
 import '../../domain/etiquetas_puntos.dart';
 import '../../domain/quiniela_models.dart';
+import '../../providers/quinielas_acciones.dart';
+import 'pronostico_card.dart';
 import 'resultado_quiniela_badge.dart';
 
-/// Card grande de la quiniela destacada: métricas, avance y desglose de pronósticos.
+/// Card grande de la quiniela destacada: métricas, avance y partidos desplegables.
 class QuinielaDestacadaCard extends StatelessWidget {
   const QuinielaDestacadaCard({super.key, required this.quiniela});
 
@@ -23,6 +26,7 @@ class QuinielaDestacadaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final q = quiniela;
     final pctAvance = (q.avance * 100).round();
+    final porJugar = q.porJugar;
 
     return TdsCard(
       glow: true,
@@ -54,9 +58,13 @@ class QuinielaDestacadaCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: Text('Avance de la Quiniela', style: TdsText.label(12, color: TdsColors.onSurfaceVariant))),
-              Text('$pctAvance% (${q.finalizados.length} de ${q.totalPartidos} partidos)',
-                  style: TdsText.label(12, color: TdsColors.primaryContainer)),
+              Expanded(
+                child: Text('Avance de la Quiniela', style: TdsText.label(12, color: TdsColors.onSurfaceVariant)),
+              ),
+              Text(
+                '$pctAvance% (${q.finalizados.length} de ${q.totalPartidos} partidos)',
+                style: TdsText.label(12, color: TdsColors.primaryContainer),
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -75,56 +83,38 @@ class QuinielaDestacadaCard extends StatelessWidget {
               const Icon(Icons.checklist, color: TdsColors.primaryContainer, size: 20),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('DESGLOSE DE TUS PRONÓSTICOS (${q.pronosticos.length})',
-                    style: TdsText.label(12, letterSpacing: 0.8)),
+                child: Text(
+                  'PARTIDOS EN JUEGO Y POR JUGAR (${porJugar.length})',
+                  style: TdsText.label(12, letterSpacing: 0.8),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          if (q.partidos.isEmpty)
-            Text('Este torneo aún no tiene partidos.', style: TdsText.body(13, color: TdsColors.onSurfaceVariant))
+          if (porJugar.isEmpty)
+            Text(
+              'No quedan partidos en juego ni por jugar.',
+              style: TdsText.body(13, color: TdsColors.onSurfaceVariant),
+            )
           else
-            for (final p in _ordenDesglose(q.partidos)) PronosticoFila(partido: p, pronostico: q.pronosticos[p.id]),
+            _PartidosConBuscador(quiniela: q, partidos: porJugar),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TdsPillButton(
-                  icon: Icons.share_outlined,
-                  label: 'Copiar código',
-                  onTap: () => copiarCodigo(context, q.codigoAcceso),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TdsPillButton(
-                  icon: Icons.open_in_new,
-                  label: 'Ver detalle',
-                  primary: true,
-                  onTap: () => context.push(Rutas.quiniela(q.id)),
-                ),
-              ),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: TdsPillButton(
+              icon: Icons.share_outlined,
+              label: 'Copiar código',
+              onTap: () => copiarCodigo(context, q.codigoAcceso),
+            ),
           ),
         ],
       ),
     );
   }
-
-  /// Finalizados → en vivo → futuros → suspendidos.
-  List<Partido> _ordenDesglose(List<Partido> partidos) {
-    int peso(EstadoPartido e) => switch (e) {
-          EstadoPartido.finalizado => 0,
-          EstadoPartido.enVivo => 1,
-          EstadoPartido.futuro => 2,
-          EstadoPartido.suspendido => 3,
-        };
-    return [...partidos]..sort((a, b) => peso(a.estado).compareTo(peso(b.estado)));
-  }
 }
 
 /// Card compacta, con desglose desplegable. En una quiniela finalizada muestra el resultado (4.7).
-class QuinielaCompactaCard extends StatefulWidget {
+class QuinielaCompactaCard extends StatelessWidget {
   const QuinielaCompactaCard({super.key, required this.quiniela, this.miId});
 
   final ResumenQuiniela quiniela;
@@ -133,17 +123,12 @@ class QuinielaCompactaCard extends StatefulWidget {
   final String? miId;
 
   @override
-  State<QuinielaCompactaCard> createState() => _QuinielaCompactaCardState();
-}
-
-class _QuinielaCompactaCardState extends State<QuinielaCompactaCard> {
-  bool _expandida = false;
-
-  @override
   Widget build(BuildContext context) {
-    final q = widget.quiniela;
-    final finalizada = !q.activa; // finalizada o anulada
-    final conPronostico = q.partidos.where((p) => q.pronosticos.containsKey(p.id)).toList();
+    final q = quiniela;
+    final finalizada = !q.activa;
+    // Activa: solo partidos en juego o por jugar. Finalizada (historial): todos.
+    final partidos = finalizada ? q.partidos : q.porJugar;
+    final conPronostico = partidos.where((p) => q.pronosticos.containsKey(p.id)).toList();
 
     return TdsCard(
       child: Column(
@@ -172,8 +157,13 @@ class _QuinielaCompactaCardState extends State<QuinielaCompactaCard> {
                               total: q.participantes,
                               empate: q.empateEnPrimero,
                             ),
-                          if (q.esCreador(widget.miId))
-                            TdsPill(child: Text('CREADA POR TI', style: TdsText.label(10, color: TdsColors.secondaryContainer))),
+                          if (q.esCreador(miId))
+                            TdsPill(
+                              child: Text(
+                                'CREADA POR TI',
+                                style: TdsText.label(10, color: TdsColors.secondaryContainer),
+                              ),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -195,9 +185,10 @@ class _QuinielaCompactaCardState extends State<QuinielaCompactaCard> {
                   ? [
                       _Dato(titulo: 'Resultado', valor: '${q.aciertos} / ${q.finalizados.length} aciertos'),
                       _Dato(
-                          titulo: 'Posición final',
-                          valor: '#${q.lugar} de ${q.participantes}',
-                          color: TdsColors.secondaryContainer),
+                        titulo: 'Posición final',
+                        valor: '#${q.lugar} de ${q.participantes}',
+                        color: TdsColors.secondaryContainer,
+                      ),
                       _Dato(titulo: 'Puntos', valor: '${q.puntos} pts', color: TdsColors.primaryContainer),
                     ]
                   : [
@@ -209,8 +200,10 @@ class _QuinielaCompactaCardState extends State<QuinielaCompactaCard> {
           ),
           if (conPronostico.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text('TUS ${conPronostico.length} SELECCIONES GUARDADAS:',
-                style: TdsText.label(11, color: TdsColors.onSurfaceVariant)),
+            Text(
+              'TUS ${conPronostico.length} SELECCIONES GUARDADAS:',
+              style: TdsText.label(11, color: TdsColors.onSurfaceVariant),
+            ),
             const SizedBox(height: 6),
             Wrap(
               spacing: 6,
@@ -226,8 +219,10 @@ class _QuinielaCompactaCardState extends State<QuinielaCompactaCard> {
                       color: TdsColors.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(signo(q.pronosticos[p.id]!.golesLocal, q.pronosticos[p.id]!.golesVisitante),
-                        style: TdsText.label(12, color: TdsColors.primaryContainer)),
+                    child: Text(
+                      signo(q.pronosticos[p.id]!.golesLocal, q.pronosticos[p.id]!.golesVisitante),
+                      style: TdsText.label(12, color: TdsColors.primaryContainer),
+                    ),
                   ),
                 if (!finalizada && q.futuros.isNotEmpty && q.futurosListos == q.futuros.length)
                   Text('✓ Completos', style: TdsText.body(11, color: TdsColors.onSurfaceVariant)),
@@ -235,59 +230,105 @@ class _QuinielaCompactaCardState extends State<QuinielaCompactaCard> {
             ),
           ],
           const SizedBox(height: 12),
-          Material(
-            color: TdsColors.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(16),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => setState(() => _expandida = !_expandida),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(finalizada ? 'Ver pronósticos y resultados' : 'Ver todos los pronósticos',
-                        style: TdsText.label(12)),
-                    const SizedBox(width: 4),
-                    AnimatedRotation(
-                      turns: _expandida ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 200),
-                      child: const Icon(Icons.expand_more, size: 18, color: TdsColors.onSurface),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          Text(
+            finalizada ? 'PRONÓSTICOS Y RESULTADOS (${partidos.length})' : 'PARTIDOS EN JUEGO Y POR JUGAR (${partidos.length})',
+            style: TdsText.label(11, color: TdsColors.onSurfaceVariant),
           ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            alignment: Alignment.topCenter,
-            child: _expandida
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Column(
-                      children: [
-                        if (q.partidos.isEmpty)
-                          Text('Este torneo aún no tiene partidos.',
-                              style: TdsText.body(13, color: TdsColors.onSurfaceVariant)),
-                        for (final p in q.partidos) PronosticoFila(partido: p, pronostico: q.pronosticos[p.id]),
-                      ],
-                    ),
-                  )
-                : const SizedBox(width: double.infinity),
-          ),
+          const SizedBox(height: 8),
+          if (partidos.isEmpty)
+            Text(
+              finalizada ? 'Este torneo aún no tiene partidos.' : 'No quedan partidos en juego ni por jugar.',
+              style: TdsText.body(13, color: TdsColors.onSurfaceVariant),
+            )
+          else
+            _PartidosConBuscador(quiniela: q, partidos: partidos),
         ],
       ),
     );
   }
 }
 
+/// Buscador de equipos ("Municipal" o "Municipal vs Comunicaciones") y los partidos: 2 a la vista y el
+/// resto con "Ver más". Buscando se muestran todos los que coinciden.
+class _PartidosConBuscador extends ConsumerStatefulWidget {
+  const _PartidosConBuscador({required this.quiniela, required this.partidos});
+
+  final ResumenQuiniela quiniela;
+  final List<Partido> partidos;
+
+  @override
+  ConsumerState<_PartidosConBuscador> createState() => _PartidosConBuscadorState();
+}
+
+class _PartidosConBuscadorState extends ConsumerState<_PartidosConBuscador> {
+  static const _aLaVista = 2;
+
+  final _listaKey = GlobalKey();
+  String _busqueda = '';
+  bool _verTodos = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final q = widget.quiniela;
+    final coinciden = widget.partidos.where((p) => p.coincideConBusqueda(_busqueda)).toList();
+    final buscando = _busqueda.trim().isNotEmpty;
+    final ocultos = buscando ? 0 : coinciden.length - _aLaVista;
+    final visibles = ocultos > 0 && !_verTodos ? coinciden.take(_aLaVista).toList() : coinciden;
+
+    return Column(
+      key: _listaKey,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TdsBuscador(
+          hint: 'Buscar equipo: Equipo A vs Equipo B',
+          color: TdsColors.surfaceContainerHigh,
+          onChanged: (v) => setState(() => _busqueda = v),
+        ),
+        const SizedBox(height: 12),
+        if (visibles.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Ningún partido coincide con "${_busqueda.trim()}".',
+              style: TdsText.body(13, color: TdsColors.onSurfaceVariant),
+            ),
+          ),
+        for (final p in visibles)
+          PronosticoFila(
+            key: ValueKey(p.id),
+            partido: p,
+            pronostico: q.pronosticos[p.id],
+            // Misma acción que Mis pronósticos: guarda en pronosticos (usuario + quiniela + partido)
+            onGuardar: q.activa
+                ? (p, l, v) => ref
+                      .read(quinielasAccionesProvider)
+                      .guardarPronostico(quinielaId: q.id, partidoId: p.id, golesLocal: l, golesVisitante: v)
+                : null,
+          ),
+        if (ocultos > 0)
+          TdsVerMas(
+            ocultos: ocultos,
+            abierto: _verTodos,
+            onTap: () {
+              setState(() => _verTodos = !_verTodos);
+              if (!_verTodos) TdsVerMas.regresarA(_listaKey);
+            },
+          ),
+      ],
+    );
+  }
+}
+
 /// Fila del desglose: estado + marcador, mi pronóstico y badge de puntos.
 class PronosticoFila extends StatelessWidget {
-  const PronosticoFila({super.key, required this.partido, this.pronostico});
+  const PronosticoFila({super.key, required this.partido, this.pronostico, this.onGuardar});
 
   final Partido partido;
   final Pronostico? pronostico;
+
+  /// Con valor, el partido abierto muestra "Asignar marcador" / "Editar marcador" para poner
+  /// los goles ahí mismo. null = solo lectura (historial).
+  final GuardarPronostico? onGuardar;
 
   @override
   Widget build(BuildContext context) {
@@ -300,24 +341,26 @@ class PronosticoFila extends StatelessWidget {
     };
 
     // ¿El signo de mi pronóstico coincide con el marcador actual? (solo para la etiqueta "PARCIAL")
-    final acertando = pr != null &&
+    final acertando =
+        pr != null &&
         p.tieneMarcador &&
         signo(pr.golesLocal, pr.golesVisitante) == signo(p.golesLocal!, p.golesVisitante!);
     final fallado = p.estado == EstadoPartido.finalizado && (pr == null || pr.puntos == 0);
 
     final Widget badge = switch (p.estado) {
       EstadoPartido.finalizado when pr != null && pr.puntos > 0 => _Badge(
-          icono: Icons.check_circle,
-          texto: '+${pr.puntos} pts',
-          fondo: TdsColors.exito,
-          color: TdsColors.texto),
+        icono: Icons.check_circle,
+        texto: '+${pr.puntos} pts',
+        fondo: TdsColors.exito,
+        color: TdsColors.texto,
+      ),
       EstadoPartido.finalizado => const _Badge(icono: Icons.cancel, texto: '0 pts'),
       EstadoPartido.enVivo when pr == null => const _Badge(texto: 'SIN PRONÓSTICO'),
       EstadoPartido.enVivo => _Badge(
-          icono: acertando ? Icons.sync : Icons.warning_amber_rounded,
-          texto: acertando ? 'PARCIAL' : 'EN RIESGO',
-          color: acertando ? TdsColors.primaryContainer : TdsColors.error,
-        ),
+        icono: acertando ? Icons.sync : Icons.warning_amber_rounded,
+        texto: acertando ? 'PARCIAL' : 'EN RIESGO',
+        color: acertando ? TdsColors.primaryContainer : TdsColors.error,
+      ),
       EstadoPartido.suspendido => const _Badge(texto: 'SUSPENDIDO'),
       EstadoPartido.futuro => const _Badge(texto: 'PENDIENTE'),
     };
@@ -333,38 +376,195 @@ class PronosticoFila extends StatelessWidget {
               : TdsColors.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Row(
+        // El editor va debajo, a todo lo ancho de la fila, para que quepan los campos en celular
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      EstadoPartidoPill(estado: p.estado, fecha: p.fecha),
-                      Text(partidoTexto, style: TdsText.label(12)),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text('Tu pronóstico:', style: TdsText.body(12, color: TdsColors.onSurfaceVariant)),
-                      _PronosticoChip(pronostico: pr, partido: p, fallado: fallado, acertando: acertando),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            badge,
+            _contenido(p, partidoTexto, pr, fallado, acertando, badge),
+            if (onGuardar != null && p.aceptaPronostico) ...[
+              const SizedBox(height: 10),
+              _EditorMarcador(partido: p, pronostico: pr, onGuardar: onGuardar!),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _contenido(Partido p, String partidoTexto, Pronostico? pr, bool fallado, bool acertando, Widget badge) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  EstadoPartidoPill(estado: p.estado, fecha: p.fecha),
+                  Text(partidoTexto, style: TdsText.label(12)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text('Tu pronóstico:', style: TdsText.body(12, color: TdsColors.onSurfaceVariant)),
+                  _PronosticoChip(pronostico: pr, partido: p, fallado: fallado, acertando: acertando),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        badge,
+      ],
+    );
+  }
+}
+
+/// Botón "Asignar marcador" / "Editar marcador" que abre, dentro de la misma fila, los campos de goles
+/// (local y visitante) con Guardar y Cancelar. Los campos solo aceptan enteros de 0 a 99.
+class _EditorMarcador extends StatefulWidget {
+  const _EditorMarcador({required this.partido, required this.pronostico, required this.onGuardar});
+
+  final Partido partido;
+  final Pronostico? pronostico;
+  final GuardarPronostico onGuardar;
+
+  @override
+  State<_EditorMarcador> createState() => _EditorMarcadorState();
+}
+
+class _EditorMarcadorState extends State<_EditorMarcador> {
+  final _local = TextEditingController();
+  final _visitante = TextEditingController();
+  bool _editando = false;
+  bool _guardando = false;
+
+  @override
+  void dispose() {
+    _local.dispose();
+    _visitante.dispose();
+    super.dispose();
+  }
+
+  void _abrir() {
+    // Con marcador previo, los campos llegan con esos valores
+    _local.text = widget.pronostico?.golesLocal.toString() ?? '';
+    _visitante.text = widget.pronostico?.golesVisitante.toString() ?? '';
+    setState(() => _editando = true);
+  }
+
+  bool get _completo => _local.text.isNotEmpty && _visitante.text.isNotEmpty;
+
+  Future<void> _guardar() async {
+    FocusScope.of(context).unfocus();
+    final local = int.tryParse(_local.text);
+    final visitante = int.tryParse(_visitante.text);
+    if (local == null || visitante == null || local < 0 || visitante < 0) {
+      Notificacion.advertencia(context, 'Escribe los goles de los dos equipos.', titulo: 'Falta el marcador');
+      return;
+    }
+    // El partido pudo empezar mientras se escribía
+    if (!widget.partido.aceptaPronostico) {
+      Notificacion.advertencia(context, 'El partido ya comenzó.', titulo: 'Pronósticos cerrados');
+      setState(() => _editando = false);
+      return;
+    }
+
+    setState(() => _guardando = true);
+    try {
+      await widget.onGuardar(widget.partido, local, visitante);
+      if (!mounted) return;
+      setState(() => _editando = false);
+      Notificacion.exito(context, 'Tu pronóstico quedó guardado: $local - $visitante.', titulo: 'Pronóstico guardado');
+    } catch (e) {
+      if (mounted) Notificacion.excepcion(context, e, titulo: 'No se pudo guardar');
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.partido;
+    final tieneMarcador = widget.pronostico != null;
+
+    if (!_editando) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: TdsPillButton(
+          icon: tieneMarcador ? Icons.edit_note : Icons.edit_outlined,
+          label: tieneMarcador ? 'Editar marcador' : 'Asignar marcador',
+          primary: !tieneMarcador,
+          onTap: _abrir,
+        ),
+      );
+    }
+
+    Widget equipo(String nombre, TextAlign alineacion) => Expanded(
+      child: Text(
+        nombre,
+        textAlign: alineacion,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TdsText.label(12, color: TdsColors.onSurfaceVariant),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            equipo(p.local.nombre, TextAlign.right),
+            const SizedBox(width: 8),
+            GolesField(
+              controller: _local,
+              enabled: !_guardando,
+              autofocus: true,
+              etiqueta: 'Goles de ${p.local.nombre}',
+              onChanged: () => setState(() {}),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(':', style: TdsText.stats(22, color: TdsColors.onSurfaceVariant)),
+            ),
+            GolesField(
+              controller: _visitante,
+              enabled: !_guardando,
+              etiqueta: 'Goles de ${p.visitante.nombre}',
+              onChanged: () => setState(() {}),
+            ),
+            const SizedBox(width: 8),
+            equipo(p.visitante.nombre, TextAlign.left),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.end,
+          children: [
+            TdsPillButton(
+              icon: Icons.close,
+              label: 'Cancelar',
+              onTap: _guardando ? null : () => setState(() => _editando = false),
+            ),
+            TdsPillButton(
+              icon: Icons.save_outlined,
+              label: 'Guardar',
+              primary: true,
+              cargando: _guardando,
+              onTap: _completo && !_guardando ? _guardar : null,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -445,7 +645,6 @@ class _Cabecera extends StatelessWidget {
           TdsColors.surfaceContainerHighest,
           false,
         ),
-      EstadoQuiniela.anulada => ('ANULADA • PARTIDO SUSPENDIDO', TdsColors.advertencia, TdsColors.superficieAlta, false),
     };
 
     return Wrap(
@@ -453,7 +652,6 @@ class _Cabecera extends StatelessWidget {
       runSpacing: 4,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        EtiquetaTipoQuiniela(tipo: q.tipo),
         TdsPill(
           color: fondo,
           child: Row(
@@ -585,27 +783,4 @@ class _Badge extends StatelessWidget {
 void copiarCodigo(BuildContext context, String codigo) {
   Clipboard.setData(ClipboardData(text: codigo));
   Notificacion.exito(context, 'Compártelo para invitar a tus amigos.', titulo: 'Código $codigo copiado');
-}
-
-/// Etiqueta "TORNEO" / "PARTIDO" de una quiniela.
-class EtiquetaTipoQuiniela extends StatelessWidget {
-  const EtiquetaTipoQuiniela({super.key, required this.tipo});
-
-  final TipoQuiniela tipo;
-
-  @override
-  Widget build(BuildContext context) {
-    return TdsPill(
-      color: TdsColors.superficieAlta,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(tipo == TipoQuiniela.partido ? Icons.sports_soccer : Icons.emoji_events_outlined,
-              size: 12, color: TdsColors.textoSecundario),
-          const SizedBox(width: 4),
-          Text(tipo.etiqueta.toUpperCase(), style: TdsText.label(10, color: TdsColors.textoSecundario)),
-        ],
-      ),
-    );
-  }
 }

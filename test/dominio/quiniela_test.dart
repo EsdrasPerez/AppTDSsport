@@ -88,4 +88,14 @@ void main() {
     expect(signo(1, 1), 'X');
     expect(signo(0, 3), '2');
   });
+
+  test('porJugar: solo en juego y por jugar, en juego primero; sin finalizados ni suspendidos', () {
+    final q = resumen(partidos: [
+      partido(id: 'fin', estado: EstadoPartido.finalizado, gl: 1, gv: 0),
+      partido(id: 'fut', fecha: DateTime.now().add(const Duration(days: 1))),
+      partido(id: 'sus', estado: EstadoPartido.suspendido),
+      partido(id: 'vivo', estado: EstadoPartido.enVivo, gl: 0, gv: 0),
+    ]);
+    expect(q.porJugar.map((p) => p.id), ['vivo', 'fut']);
+  });
 }

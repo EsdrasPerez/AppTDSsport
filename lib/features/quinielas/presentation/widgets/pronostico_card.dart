@@ -99,7 +99,7 @@ class _PronosticoCardState extends State<PronosticoCard> {
           Row(
             children: [
               Expanded(child: EquipoEscudo(nombre: partido.local.nombre, escudoUrl: partido.local.escudoUrl)),
-              _GolesField(
+              GolesField(
                 controller: _localController,
                 enabled: !_bloqueado,
                 etiqueta: 'Goles de ${partido.local.nombre}',
@@ -109,7 +109,7 @@ class _PronosticoCardState extends State<PronosticoCard> {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Text(':', style: TdsText.stats(24, color: TdsColors.onSurfaceVariant)),
               ),
-              _GolesField(
+              GolesField(
                 controller: _visitanteController,
                 enabled: !_bloqueado,
                 etiqueta: 'Goles de ${partido.visitante.nombre}',
@@ -122,9 +122,9 @@ class _PronosticoCardState extends State<PronosticoCard> {
           ),
           const SizedBox(height: 16),
           if (_bloqueado)
-            _Aviso(icono: Icons.lock_outline, texto: 'Pronósticos cerrados', color: TdsColors.onSurfaceVariant)
+            AvisoPronostico(icono: Icons.lock_outline, texto: 'Pronósticos cerrados', color: TdsColors.onSurfaceVariant)
           else if (widget.pronostico != null && !_modificado && !_guardando)
-            const _Aviso(icono: Icons.check_circle, texto: 'Pronóstico guardado', color: TdsColors.primaryContainer)
+            const AvisoPronostico(icono: Icons.check_circle, texto: 'Pronóstico guardado', color: TdsColors.primaryContainer)
           else
             SizedBox(
               width: double.infinity,
@@ -142,8 +142,9 @@ class _PronosticoCardState extends State<PronosticoCard> {
   }
 }
 
-class _Aviso extends StatelessWidget {
-  const _Aviso({required this.icono, required this.texto, required this.color});
+/// Ícono + texto centrado ("Pronóstico guardado", "Pronósticos cerrados").
+class AvisoPronostico extends StatelessWidget {
+  const AvisoPronostico({super.key, required this.icono, required this.texto, required this.color});
 
   final IconData icono;
   final String texto;
@@ -162,18 +163,24 @@ class _Aviso extends StatelessWidget {
   }
 }
 
-class _GolesField extends StatelessWidget {
-  const _GolesField({
+/// Campo de goles (0..99) de un pronóstico.
+class GolesField extends StatelessWidget {
+  const GolesField({
+    super.key,
     required this.controller,
     required this.enabled,
     required this.onChanged,
     required this.etiqueta,
+    this.autofocus = false,
+    this.onTap,
   });
 
   final TextEditingController controller;
   final bool enabled;
   final VoidCallback onChanged;
   final String etiqueta;
+  final bool autofocus;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -184,6 +191,8 @@ class _GolesField extends StatelessWidget {
         child: TextField(
           controller: controller,
           enabled: enabled,
+          autofocus: autofocus && enabled,
+          onTap: onTap,
           onChanged: (_) => onChanged(),
           textAlign: TextAlign.center,
           keyboardType: TextInputType.number,

@@ -52,6 +52,7 @@ class _Opcion {
 const _opciones = [
   _Opcion('Panel principal', Icons.dashboard_outlined, Rutas.inicio),
   _Opcion('Partidos', Icons.sports_soccer, Rutas.partidos),
+  _Opcion('Calendario', Icons.calendar_month_outlined, Rutas.calendario),
   _Opcion('Mis quinielas', Icons.emoji_events_outlined, Rutas.quinielas),
   _Opcion('Mis pronósticos', Icons.edit_note, Rutas.misPronosticos),
   _Opcion('Pronósticos de rivales', Icons.visibility_outlined, Rutas.rivales, soloPro: true),

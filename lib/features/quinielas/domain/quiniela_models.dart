@@ -4,43 +4,13 @@ import '../../partidos/domain/partido.dart';
 import '../../perfil/domain/perfil.dart';
 import 'posiciones.dart';
 
-/// Quiniela de todo un torneo o de un solo partido (quinielas.tipo).
-enum TipoQuiniela {
-  torneo('TORNEO', 'Torneo'),
-  partido('PARTIDO', 'Partido');
+enum EstadoQuiniela { enCurso, porIniciar, finalizada }
 
-  const TipoQuiniela(this.codigo, this.etiqueta);
+enum ResultadoQuiniela { enJuego, ganada, perdida }
 
-  final String codigo;
-  final String etiqueta;
-
-  /// Sin la columna tipo (antes de la migración 03) todas son por torneo.
-  static TipoQuiniela desdeCodigo(String? codigo) => codigo == 'PARTIDO' ? partido : torneo;
-}
-
-enum EstadoQuiniela { enCurso, porIniciar, finalizada, anulada }
-
-enum ResultadoQuiniela { enJuego, ganada, perdida, anulada }
-
-/// Regla única del estado de una quiniela (la usan el resumen y el detalle).
-/// - Por torneo: finalizada si el torneo está inactivo o ya se jugaron todos sus partidos no suspendidos.
-/// - Por partido: finalizada cuando el partido termina; ANULADA si el partido se suspendió.
-EstadoQuiniela calcularEstadoQuiniela({
-  required TipoQuiniela tipo,
-  required bool torneoActivo,
-  required List<Partido> partidos,
-}) {
-  if (tipo == TipoQuiniela.partido) {
-    final p = partidos.firstOrNull;
-    if (p == null) return EstadoQuiniela.finalizada;
-    return switch (p.estado) {
-      EstadoPartido.suspendido => EstadoQuiniela.anulada,
-      EstadoPartido.finalizado => EstadoQuiniela.finalizada,
-      EstadoPartido.enVivo => EstadoQuiniela.enCurso,
-      EstadoPartido.futuro => torneoActivo ? EstadoQuiniela.porIniciar : EstadoQuiniela.finalizada,
-    };
-  }
-
+/// Regla única del estado de una quiniela (la usan el resumen y el detalle). Todas las quinielas son
+/// de un torneo: finalizada si el torneo está inactivo o ya se jugaron todos sus partidos no suspendidos.
+EstadoQuiniela calcularEstadoQuiniela({required bool torneoActivo, required List<Partido> partidos}) {
   final jugables = partidos.where((p) => p.estado != EstadoPartido.suspendido).toList();
   if (!torneoActivo || (jugables.isNotEmpty && jugables.every((p) => p.estado == EstadoPartido.finalizado))) {
     return EstadoQuiniela.finalizada;
@@ -51,21 +21,9 @@ EstadoQuiniela calcularEstadoQuiniela({
 
 /// Ganada si quedó en 1.er lugar (empates comparten el 1.er lugar). Solo cuando ya terminó.
 ResultadoQuiniela calcularResultado(EstadoQuiniela estado, int? lugar) => switch (estado) {
-      EstadoQuiniela.anulada => ResultadoQuiniela.anulada,
       EstadoQuiniela.finalizada => lugar == 1 ? ResultadoQuiniela.ganada : ResultadoQuiniela.perdida,
       _ => ResultadoQuiniela.enJuego,
     };
-
-/// Partidos que pertenecen a una quiniela según su tipo.
-List<Partido> partidosDeQuiniela({
-  required TipoQuiniela tipo,
-  required String torneoId,
-  required String? partidoId,
-  required Iterable<Partido> partidos,
-}) =>
-    tipo == TipoQuiniela.partido
-        ? partidos.where((p) => p.id == partidoId).toList()
-        : partidos.where((p) => p.torneoId == torneoId).toList();
 
 /// Cabecera de una quiniela (tabla quinielas + torneos).
 class QuinielaDetalle extends Equatable {
@@ -78,8 +36,6 @@ class QuinielaDetalle extends Equatable {
     required this.torneoNombre,
     required this.torneoActivo,
     required this.creadorId,
-    this.tipo = TipoQuiniela.torneo,
-    this.partidoId,
   });
 
   final String id;
@@ -90,8 +46,6 @@ class QuinielaDetalle extends Equatable {
   final String torneoNombre;
   final bool torneoActivo;
   final String creadorId;
-  final TipoQuiniela tipo;
-  final String? partidoId;
 
   factory QuinielaDetalle.fromMap(Map<String, dynamic> map) => QuinielaDetalle(
         id: map['id'].toString(),
@@ -102,13 +56,11 @@ class QuinielaDetalle extends Equatable {
         torneoNombre: map['torneos']?['nombre'] ?? 'Torneo',
         torneoActivo: torneoEstaActivo(map['torneos']),
         creadorId: map['creador_id'].toString(),
-        tipo: TipoQuiniela.desdeCodigo(map['tipo'] as String?),
-        partidoId: map['partido_id']?.toString(),
       );
 
   @override
   List<Object?> get props =>
-      [id, nombre, codigoAcceso, limiteUsuarios, torneoId, torneoNombre, torneoActivo, creadorId, tipo, partidoId];
+      [id, nombre, codigoAcceso, limiteUsuarios, torneoId, torneoNombre, torneoActivo, creadorId];
 }
 
 /// Fila de la tabla de posiciones (quiniela_usuarios + perfiles).
@@ -180,8 +132,6 @@ class ResumenQuiniela extends Equatable {
     required this.puntosDeTodos,
     required this.partidos,
     required this.pronosticos,
-    this.tipo = TipoQuiniela.torneo,
-    this.partidoId,
   });
 
   final String id;
@@ -194,8 +144,6 @@ class ResumenQuiniela extends Equatable {
   final String torneoId;
   final String torneoNombre;
   final bool torneoActivo;
-  final TipoQuiniela tipo;
-  final String? partidoId;
 
   /// Mis puntos_totales en esta quiniela (leídos de la base).
   final int puntos;
@@ -203,7 +151,7 @@ class ResumenQuiniela extends Equatable {
   /// puntos_totales de todos los miembros (incluido yo).
   final List<int> puntosDeTodos;
 
-  /// Partidos de la quiniela: todo el torneo (TORNEO) o solo uno (PARTIDO), por fecha.
+  /// Partidos del torneo de la quiniela, por fecha.
   final List<Partido> partidos;
 
   /// Mis pronósticos, por partido.
@@ -219,8 +167,13 @@ class ResumenQuiniela extends Equatable {
   List<Partido> get futuros => partidos.where((p) => p.estado == EstadoPartido.futuro).toList();
   int get enVivo => partidos.where((p) => p.estado == EstadoPartido.enVivo).length;
 
-  EstadoQuiniela get estado =>
-      calcularEstadoQuiniela(tipo: tipo, torneoActivo: torneoActivo, partidos: partidos);
+  /// Partidos en juego primero y luego los que se jugarán (sin finalizados ni suspendidos).
+  List<Partido> get porJugar => [
+        ...partidos.where((p) => p.estado == EstadoPartido.enVivo),
+        ...futuros,
+      ];
+
+  EstadoQuiniela get estado => calcularEstadoQuiniela(torneoActivo: torneoActivo, partidos: partidos);
 
   bool get activa => estado == EstadoQuiniela.enCurso || estado == EstadoQuiniela.porIniciar;
 
@@ -254,7 +207,7 @@ class ResumenQuiniela extends Equatable {
   @override
   List<Object?> get props => [
         id, nombre, codigoAcceso, limiteUsuarios, creadoEn, unidoEn, creadorId, torneoId, torneoNombre,
-        torneoActivo, tipo, partidoId, puntos, puntosDeTodos, partidos, pronosticos,
+        torneoActivo, puntos, puntosDeTodos, partidos, pronosticos,
       ];
 }
 
@@ -270,7 +223,7 @@ class DetalleQuiniela extends Equatable {
 
   final QuinielaDetalle quiniela;
 
-  /// Ya filtrados por tipo (todo el torneo o el partido único).
+  /// Partidos del torneo de la quiniela.
   final List<Partido> partidos;
   final List<Posicion> posiciones;
   final Map<String, Pronostico> misPronosticos;
@@ -279,18 +232,16 @@ class DetalleQuiniela extends Equatable {
   Posicion? get miPosicion => posiciones.where((p) => p.usuarioId == miId).firstOrNull;
   bool get soyMiembro => miPosicion != null;
   bool get soyCreador => miId != null && quiniela.creadorId == miId;
-  bool get esPorPartido => quiniela.tipo == TipoQuiniela.partido;
 
-  EstadoQuiniela get estado =>
-      calcularEstadoQuiniela(tipo: quiniela.tipo, torneoActivo: quiniela.torneoActivo, partidos: partidos);
+  EstadoQuiniela get estado => calcularEstadoQuiniela(torneoActivo: quiniela.torneoActivo, partidos: partidos);
 
-  /// Terminada (finalizada o anulada): ya no se invita ni se pronostica.
-  bool get finalizada => estado == EstadoQuiniela.finalizada || estado == EstadoQuiniela.anulada;
+  /// Terminada: ya no se invita ni se pronostica.
+  bool get finalizada => estado == EstadoQuiniela.finalizada;
 
   ResultadoQuiniela get miResultado => resultadoDe(miPosicion);
 
   ResultadoQuiniela resultadoDe(Posicion? p) =>
-      p == null && estado != EstadoQuiniela.anulada ? ResultadoQuiniela.enJuego : calcularResultado(estado, p?.lugar);
+      p == null ? ResultadoQuiniela.enJuego : calcularResultado(estado, p.lugar);
 
   /// Todo lo que no ha finalizado (los que no aceptan pronóstico se muestran bloqueados).
   List<Partido> get pendientes => partidos.where((p) => p.estado != EstadoPartido.finalizado).toList();

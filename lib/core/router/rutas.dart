@@ -8,6 +8,7 @@ class Rutas {
 
   static const inicio = '/inicio';
   static const partidos = '/partidos';
+  static const calendario = '/calendario';
   static const quinielas = '/quinielas';
   static const quinielaNueva = '/quinielas/nueva';
   static const quinielaUnirse = '/quinielas/unirse';
@@ -23,21 +24,20 @@ class Rutas {
   static const adminEquipos = '/admin/equipos';
   static const adminPartidos = '/admin/partidos';
 
-  static String quiniela(String id, {bool soloLectura = false}) =>
-      soloLectura ? '/quinielas/$id?lectura=1' : '/quinielas/$id';
+  /// Con [partidoId] abre Pendientes en ese partido, resaltado y listo para poner los goles.
+  static String quiniela(String id, {bool soloLectura = false, String? partidoId}) => Uri(
+        path: '/quinielas/$id',
+        queryParameters: {if (soloLectura) 'lectura': '1', 'partido': ?partidoId},
+      ).toString();
 
   static String participante(String quinielaId, String usuarioId) =>
       '/quinielas/$quinielaId/participante/$usuarioId';
 
   static String unirseConCodigo(String codigo) => '$quinielaUnirse?codigo=$codigo';
 
-  /// [tipo]: 'torneo' o 'partido'. Con [partidoId] se preselecciona el partido.
-  static String crearQuiniela({String? tipo, String? torneoId, String? partidoId}) =>
-      Uri(path: quinielaNueva, queryParameters: {
-        'tipo': ?tipo,
-        'torneo': ?torneoId,
-        'partido': ?partidoId,
-      }).toString();
+  /// Las quinielas siempre son de un torneo; con [torneoId] llega preseleccionado.
+  static String crearQuiniela({String? torneoId}) =>
+      Uri(path: quinielaNueva, queryParameters: {'torneo': ?torneoId}).toString();
 
   static String partidosEnVivo() => '$partidos?tab=envivo';
 

@@ -29,6 +29,8 @@ Pronostico pronostico(String partidoId, int l, int v, {int puntos = 0}) =>
     Pronostico(partidoId: partidoId, golesLocal: l, golesVisitante: v, puntos: puntos);
 
 ResumenQuiniela resumen({
+  String id = 'q1',
+  String nombre = 'Quiniela',
   required List<Partido> partidos,
   int puntos = 0,
   List<int>? puntosDeTodos,
@@ -36,8 +38,8 @@ ResumenQuiniela resumen({
   Map<String, Pronostico> pronosticos = const {},
 }) =>
     ResumenQuiniela(
-      id: 'q1',
-      nombre: 'Quiniela',
+      id: id,
+      nombre: nombre,
       codigoAcceso: 'ABCD2345',
       limiteUsuarios: 10,
       creadoEn: null,

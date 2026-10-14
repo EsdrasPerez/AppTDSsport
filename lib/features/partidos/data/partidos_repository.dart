@@ -43,6 +43,4 @@ class PartidosRepository {
     }
     return response.map(Torneo.fromMap).where((t) => t.activo).toList();
   }
-
-  Future<int> contarTorneosActivos() async => (await obtenerTorneosActivos()).length;
 }

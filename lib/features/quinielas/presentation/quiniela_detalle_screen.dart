@@ -9,7 +9,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/rutas.dart';
 import '../../../core/theme/tds_colors.dart';
 import '../../../core/theme/tds_text.dart';
-import '../../../core/utils/formatos.dart';
 import '../../../core/widgets/tds_ui.dart';
 import '../../partidos/domain/partido.dart';
 import '../../partidos/providers/partidos_providers.dart';
@@ -18,6 +17,7 @@ import '../providers/quinielas_acciones.dart';
 import '../providers/quinielas_providers.dart';
 import 'widgets/posiciones_list.dart';
 import 'widgets/pronostico_card.dart';
+import 'widgets/pronosticos_torneo_card.dart';
 import 'widgets/quiniela_resumen_cards.dart';
 import 'widgets/resultado_card.dart';
 import 'widgets/resultado_quiniela_badge.dart';
@@ -25,10 +25,13 @@ import 'widgets/resultado_quiniela_badge.dart';
 /// Detalle de Quiniela: Pendientes (pronósticos), Finalizados y Posiciones.
 /// Con [soloLectura] (desde el historial) no hay pestaña Pendientes ni invitación.
 class QuinielaDetalleScreen extends ConsumerStatefulWidget {
-  const QuinielaDetalleScreen({super.key, required this.quinielaId, this.soloLectura = false});
+  const QuinielaDetalleScreen({super.key, required this.quinielaId, this.soloLectura = false, this.partidoId});
 
   final String quinielaId;
   final bool soloLectura;
+
+  /// Partido elegido en Mis Quinielas: Pendientes se abre resaltándolo.
+  final String? partidoId;
 
   @override
   ConsumerState<QuinielaDetalleScreen> createState() => _QuinielaDetalleScreenState();
@@ -160,6 +163,7 @@ class _QuinielaDetalleScreenState extends ConsumerState<QuinielaDetalleScreen> w
           return _Contenido(
             detalle: d,
             soloLectura: widget.soloLectura,
+            partidoId: widget.partidoId,
             onGuardar: _guardarPronostico,
             onRecargar: _recargar,
           );
@@ -175,19 +179,18 @@ class _Contenido extends StatelessWidget {
     required this.soloLectura,
     required this.onGuardar,
     required this.onRecargar,
+    this.partidoId,
   });
 
   final DetalleQuiniela detalle;
   final bool soloLectura;
+  final String? partidoId;
   final GuardarPronostico onGuardar;
   final Future<void> Function() onRecargar;
 
   @override
   Widget build(BuildContext context) {
     final d = detalle;
-    if (d.esPorPartido) {
-      return _ContenidoPorPartido(detalle: d, soloLectura: soloLectura, onGuardar: onGuardar, onRecargar: onRecargar);
-    }
     final conPendientes = !soloLectura;
 
     return DefaultTabController(
@@ -203,7 +206,7 @@ class _Contenido extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _TabBar(tabs: [
+              child: TdsTabBar(tabs: [
                 if (conPendientes) 'PENDIENTES (${d.pendientes.length})',
                 'FINALIZADOS',
                 'POSICIONES',
@@ -214,15 +217,17 @@ class _Contenido extends StatelessWidget {
               child: TabBarView(
                 children: [
                   if (conPendientes)
+                    // Una sola tarjeta con todos los partidos pendientes del torneo
                     _Lista(
                       onRecargar: onRecargar,
                       vacio: 'No hay partidos pendientes',
-                      itemCount: d.pendientes.length,
-                      itemBuilder: (_, i) => PronosticoCard(
-                        key: ValueKey(d.pendientes[i].id),
-                        partido: d.pendientes[i],
-                        pronostico: d.misPronosticos[d.pendientes[i].id],
+                      itemCount: d.pendientes.isEmpty ? 0 : 1,
+                      itemBuilder: (_, _) => PronosticosTorneoCard(
+                        titulo: d.quiniela.torneoNombre,
+                        partidos: d.pendientes,
+                        pronosticos: d.misPronosticos,
                         onGuardar: onGuardar,
+                        partidoElegido: partidoId,
                       ),
                     ),
                   _Lista(
@@ -286,7 +291,7 @@ class _Encabezado extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  EtiquetaTipoQuiniela(tipo: q.tipo),
+                  const Icon(Icons.emoji_events_outlined, size: 16, color: TdsColors.onSurfaceVariant),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(q.torneoNombre.toUpperCase(),
@@ -295,14 +300,6 @@ class _Encabezado extends StatelessWidget {
                   ),
                 ],
               ),
-              if (detalle.esPorPartido && detalle.partidos.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Partido único · ${detalle.partidos.first.local.nombre} vs ${detalle.partidos.first.visitante.nombre}'
-                  ' · ${Formatos.diaHora(detalle.partidos.first.fecha)}',
-                  style: TdsText.body(13, color: TdsColors.textoSecundario),
-                ),
-              ],
               const SizedBox(height: 4),
               Row(
                 children: [
@@ -403,29 +400,6 @@ class _NoMiembro extends StatelessWidget {
   }
 }
 
-class _TabBar extends StatelessWidget {
-  const _TabBar({required this.tabs});
-
-  final List<String> tabs;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: TdsColors.surfaceContainerLow, borderRadius: BorderRadius.circular(999)),
-      child: TabBar(
-        indicatorSize: TabBarIndicatorSize.tab,
-        indicator: BoxDecoration(color: TdsColors.surfaceContainerHighest, borderRadius: BorderRadius.circular(999)),
-        labelColor: TdsColors.onSurface,
-        unselectedLabelColor: TdsColors.onSurfaceVariant,
-        labelStyle: TdsText.label(12),
-        labelPadding: EdgeInsets.zero,
-        tabs: [for (final t in tabs) Tab(height: 40, text: t)],
-      ),
-    );
-  }
-}
-
 class _Lista extends StatelessWidget {
   const _Lista({
     required this.onRecargar,
@@ -457,67 +431,6 @@ class _Lista extends StatelessWidget {
               separatorBuilder: (_, _) => SizedBox(height: separacion),
               itemBuilder: itemBuilder,
             ),
-    );
-  }
-}
-
-/// Quiniela por partido: una sola tarjeta con el partido (editable o con resultado) y debajo las posiciones.
-class _ContenidoPorPartido extends StatelessWidget {
-  const _ContenidoPorPartido({
-    required this.detalle,
-    required this.soloLectura,
-    required this.onGuardar,
-    required this.onRecargar,
-  });
-
-  final DetalleQuiniela detalle;
-  final bool soloLectura;
-  final GuardarPronostico onGuardar;
-  final Future<void> Function() onRecargar;
-
-  @override
-  Widget build(BuildContext context) {
-    final d = detalle;
-    final partido = d.partidos.firstOrNull;
-
-    return RefreshIndicator(
-      onRefresh: onRecargar,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-        children: [
-          _Encabezado(detalle: d),
-          const SizedBox(height: 20),
-          if (partido == null)
-            const VacioView(icono: Icons.event_busy, texto: 'No se encontró el partido de esta quiniela', compacto: true)
-          else if (partido.estado == EstadoPartido.finalizado)
-            ResultadoCard(partido: partido, pronostico: d.misPronosticos[partido.id])
-          else if (soloLectura)
-            ResultadoCard(partido: partido, pronostico: d.misPronosticos[partido.id])
-          else
-            PronosticoCard(
-              key: ValueKey(partido.id),
-              partido: partido,
-              pronostico: d.misPronosticos[partido.id],
-              onGuardar: onGuardar,
-            ),
-          const SizedBox(height: 28),
-          Text('POSICIONES', style: TdsText.headline(18)),
-          const SizedBox(height: 12),
-          if (d.posiciones.isEmpty)
-            const VacioView(icono: Icons.groups_outlined, texto: 'Todavía no hay participantes', compacto: true),
-          for (final pos in d.posiciones)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: PosicionTile(
-                posicion: pos,
-                esYo: pos.usuarioId == d.miId,
-                finalizada: d.estado == EstadoQuiniela.finalizada,
-                onTap: () => context.push(Rutas.participante(d.quiniela.id, pos.usuarioId)),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

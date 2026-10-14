@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../../core/router/rutas.dart';
 import '../../../../core/theme/tds_colors.dart';
 import '../../../../core/theme/tds_text.dart';
 import '../../../../core/utils/formatos.dart';
@@ -72,7 +70,7 @@ class MarcadorCard extends StatelessWidget {
   }
 }
 
-/// Card de partido FUTURO, con horario y acceso a crear una quiniela de su torneo.
+/// Card de partido FUTURO, con horario (crear quiniela está en el encabezado de su torneo).
 class FuturoCard extends StatelessWidget {
   const FuturoCard({super.key, required this.partido});
 
@@ -138,40 +136,6 @@ class FuturoCard extends StatelessWidget {
               ),
             ],
           ),
-          // Solo se crean quinielas para torneos activos
-          // Solo partidos que aceptan pronóstico, de torneos activos
-          if (partido.permiteCrearQuiniela && partido.aceptaPronostico) ...[
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(top: 12),
-              decoration: const BoxDecoration(border: Border(top: BorderSide(color: TdsColors.borde))),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TdsPillButton(
-                      icon: Icons.sports_soccer,
-                      label: 'Quiniela de este partido',
-                      primary: true,
-                      onTap: () => context.push(Rutas.crearQuiniela(
-                        tipo: 'partido',
-                        torneoId: partido.torneoId,
-                        partidoId: partido.id,
-                      )),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TdsPillButton(
-                      icon: Icons.emoji_events_outlined,
-                      label: 'Quiniela del torneo',
-                      onTap: () => context.push(Rutas.crearQuiniela(tipo: 'torneo', torneoId: partido.torneoId)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );

@@ -7,7 +7,7 @@ import 'package:tdsport_app/features/auth/presentation/registro_screen.dart';
 
 import 'features/auth/presentation/login_screen.dart';
 import 'features/dashboard/presentation/dashboard_screen.dart';
-import 'features/auth/presentation/perfil_screen.dart';
+import 'features/perfil/presentation/perfil_screen.dart';
 
 // Pantallas, rutas y tema agregados
 import 'core/router/app_shell.dart';
@@ -17,6 +17,7 @@ import 'core/router/rutas.dart';
 import 'core/theme/tds_theme.dart';
 import 'features/admin/presentation/admin_screen.dart';
 import 'features/auth/presentation/recuperar_screen.dart';
+import 'features/partidos/presentation/calendario_screen.dart';
 import 'features/partidos/presentation/partidos_screen.dart';
 import 'features/perfil/presentation/historial_screen.dart';
 import 'features/quinielas/presentation/crear_quiniela_sheet.dart';
@@ -24,7 +25,6 @@ import 'features/quinielas/presentation/mis_pronosticos_screen.dart';
 import 'features/quinielas/presentation/mis_quinielas_screen.dart';
 import 'features/quinielas/presentation/participante_screen.dart';
 import 'features/quinielas/presentation/quiniela_detalle_screen.dart';
-import 'features/quinielas/presentation/quinielas_screen.dart';
 import 'features/quinielas/presentation/rivales_screen.dart';
 import 'features/quinielas/presentation/unirse_quiniela_sheet.dart';
 import 'features/suscripcion/domain/pasarela_pago.dart';
@@ -96,6 +96,10 @@ final GoRouter _router = GoRouter(
           builder: (context, state) => PartidosScreen(tabInicial: state.uri.queryParameters['tab']),
         ),
         GoRoute(
+          path: Rutas.calendario,
+          builder: (context, state) => const CalendarioScreen(),
+        ),
+        GoRoute(
           path: Rutas.misPronosticos,
           builder: (context, state) => MisPronosticosScreen(filtroInicial: state.uri.queryParameters['filtro']),
         ),
@@ -132,11 +136,7 @@ final GoRouter _router = GoRouter(
               parentNavigatorKey: _raizKey,
               pageBuilder: (context, state) => HojaInferiorPage(
                 key: state.pageKey,
-                child: CrearQuinielaSheet(
-                  tipo: state.uri.queryParameters['tipo'],
-                  torneoId: state.uri.queryParameters['torneo'],
-                  partidoId: state.uri.queryParameters['partido'],
-                ),
+                child: CrearQuinielaSheet(torneoId: state.uri.queryParameters['torneo']),
               ),
             ),
             GoRoute(
@@ -147,16 +147,12 @@ final GoRouter _router = GoRouter(
                 child: UnirseQuinielaSheet(codigoInicial: state.uri.queryParameters['codigo']),
               ),
             ),
-            // Módulo de quinielas (crear / unirse con pestañas)
-            GoRoute(
-              path: 'crear',
-              builder: (context, state) => const QuinielasScreen(tabInicial: 1),
-            ),
             GoRoute(
               path: ':id',
               builder: (context, state) => QuinielaDetalleScreen(
                 quinielaId: state.pathParameters['id']!,
                 soloLectura: state.uri.queryParameters['lectura'] == '1',
+                partidoId: state.uri.queryParameters['partido'],
               ),
               routes: [
                 GoRoute(

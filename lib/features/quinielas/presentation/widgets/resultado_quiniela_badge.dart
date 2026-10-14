@@ -45,8 +45,6 @@ class ResultadoQuinielaBadge extends StatelessWidget {
           TdsColors.surfaceContainerHighest,
           TdsColors.onSurface,
         ),
-      // Quiniela por partido cuyo partido se suspendió: sin ganar ni perder
-      ResultadoQuiniela.anulada => ('ANULADA', Icons.block, TdsColors.superficieAlta, TdsColors.advertencia),
     };
 
     return Container(
@@ -70,5 +68,4 @@ String textoResultado(ResultadoQuiniela r, {required int? lugar, required int to
       ResultadoQuiniela.ganada => empate ? '¡Ganaste! · empate en 1.er lugar' : '¡Ganaste la quiniela!',
       ResultadoQuiniela.perdida => 'Perdiste · quedaste #${lugar ?? '-'} de $total',
       ResultadoQuiniela.enJuego => 'Vas #${lugar ?? '-'} de $total',
-      ResultadoQuiniela.anulada => 'Quiniela anulada: el partido se suspendió',
     };

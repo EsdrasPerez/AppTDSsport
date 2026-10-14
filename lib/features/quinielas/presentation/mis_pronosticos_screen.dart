@@ -13,8 +13,7 @@ import '../domain/etiquetas_puntos.dart';
 import '../domain/quiniela_models.dart';
 import '../providers/quinielas_acciones.dart';
 import '../providers/quinielas_providers.dart';
-import 'widgets/pronostico_card.dart';
-import 'widgets/quiniela_resumen_cards.dart';
+import 'widgets/pronosticos_torneo_card.dart';
 import 'widgets/resultado_card.dart';
 
 
@@ -85,8 +84,11 @@ class _MisPronosticosScreenState extends ConsumerState<MisPronosticosScreen> {
         }
       }
     }
-    final sinFecha = DateTime(9999);
-    pendientes.sort((a, b) => (a.partido.fecha ?? sinFecha).compareTo(b.partido.fecha ?? sinFecha));
+    // Pendientes: un card desplegable por quiniela activa con sus partidos abiertos
+    final grupos = [
+      for (final q in visibles)
+        if (pendientes.any((f) => f.quiniela == q)) (q, [for (final f in pendientes) if (f.quiniela == q) f.partido]),
+    ];
     finalizados.sort((a, b) => (b.partido.fecha ?? DateTime(0)).compareTo(a.partido.fecha ?? DateTime(0)));
 
     // Resumen: puntos leídos de pronosticos.puntos_obtenidos (solo se suman para mostrar el total)
@@ -128,7 +130,7 @@ class _MisPronosticosScreenState extends ConsumerState<MisPronosticosScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _TabBar(tabs: [
+              child: TdsTabBar(desplazable: true, tabs: [
                 'PENDIENTES (${pendientes.length})',
                 'EN JUEGO (${enJuego.length})',
                 'FINALIZADOS (${finalizados.length})',
@@ -139,28 +141,40 @@ class _MisPronosticosScreenState extends ConsumerState<MisPronosticosScreen> {
               child: TabBarView(
                 children: [
                   _Lista(
-                    filas: pendientes,
+                    itemCount: grupos.length,
                     vacio: 'No tienes partidos por pronosticar',
                     onRecargar: _recargar,
-                    builder: (f) => PronosticoCard(
-                      key: ValueKey('${f.quiniela.id}-${f.partido.id}'),
-                      partido: f.partido,
-                      pronostico: f.pronostico,
-                      onGuardar: (p, l, v) => ref.read(quinielasAccionesProvider).guardarPronostico(
-                          quinielaId: f.quiniela.id, partidoId: p.id, golesLocal: l, golesVisitante: v),
-                    ),
+                    itemBuilder: (i) {
+                      final (q, partidos) = grupos[i];
+                      return PronosticosTorneoCard(
+                        key: ValueKey(q.id),
+                        titulo: q.nombre,
+                        subtitulo: q.torneoNombre,
+                        partidos: partidos,
+                        pronosticos: q.pronosticos,
+                        // 2 partidos de entrada; el resto con "Ver más"
+                        limite: 2,
+                        buscador: true,
+                        guardarPorPartido: true,
+                        onGuardar: (p, l, v) => ref.read(quinielasAccionesProvider).guardarPronostico(
+                            quinielaId: q.id, partidoId: p.id, golesLocal: l, golesVisitante: v),
+                      );
+                    },
                   ),
                   _Lista(
-                    filas: enJuego,
+                    itemCount: enJuego.length,
                     vacio: 'No hay partidos en juego',
                     onRecargar: _recargar,
-                    builder: (f) => _EnJuegoCard(fila: f),
+                    itemBuilder: (i) => _ConQuiniela(fila: enJuego[i], child: _EnJuegoCard(fila: enJuego[i])),
                   ),
                   _Lista(
-                    filas: finalizados,
+                    itemCount: finalizados.length,
                     vacio: 'Aún no hay resultados',
                     onRecargar: _recargar,
-                    builder: (f) => ResultadoCard(partido: f.partido, pronostico: f.pronostico),
+                    itemBuilder: (i) => _ConQuiniela(
+                      fila: finalizados[i],
+                      child: ResultadoCard(partido: finalizados[i].partido, pronostico: finalizados[i].pronostico),
+                    ),
                   ),
                 ],
               ),
@@ -206,18 +220,18 @@ class _Resumen extends StatelessWidget {
 }
 
 class _Lista extends StatelessWidget {
-  const _Lista({required this.filas, required this.vacio, required this.onRecargar, required this.builder});
+  const _Lista({required this.itemCount, required this.vacio, required this.onRecargar, required this.itemBuilder});
 
-  final List<_Fila> filas;
+  final int itemCount;
   final String vacio;
   final Future<void> Function() onRecargar;
-  final Widget Function(_Fila fila) builder;
+  final Widget Function(int i) itemBuilder;
 
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: onRecargar,
-      child: filas.isEmpty
+      child: itemCount == 0
           ? ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               children: [VacioView(icono: Icons.edit_note, texto: vacio)],
@@ -225,17 +239,30 @@ class _Lista extends StatelessWidget {
           : ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-              itemCount: filas.length,
+              itemCount: itemCount,
               separatorBuilder: (_, _) => const SizedBox(height: 20),
-              itemBuilder: (context, i) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _EncabezadoQuiniela(quiniela: filas[i].quiniela),
-                  const SizedBox(height: 8),
-                  builder(filas[i]),
-                ],
-              ),
+              itemBuilder: (_, i) => itemBuilder(i),
             ),
+    );
+  }
+}
+
+/// Partido con el nombre de su quiniela arriba (En juego y Finalizados).
+class _ConQuiniela extends StatelessWidget {
+  const _ConQuiniela({required this.fila, required this.child});
+
+  final _Fila fila;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _EncabezadoQuiniela(quiniela: fila.quiniela),
+        const SizedBox(height: 8),
+        child,
+      ],
     );
   }
 }
@@ -255,7 +282,7 @@ class _EncabezadoQuiniela extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: Row(
           children: [
-            EtiquetaTipoQuiniela(tipo: quiniela.tipo),
+            const Icon(Icons.emoji_events_outlined, size: 16, color: TdsColors.textoSecundario),
             const SizedBox(width: 8),
             Expanded(child: Text(quiniela.nombre, overflow: TextOverflow.ellipsis, style: TdsText.label(13))),
             Text('Ver quiniela', style: TdsText.label(12, color: TdsColors.acento)),
@@ -327,31 +354,6 @@ class _EnJuegoCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _TabBar extends StatelessWidget {
-  const _TabBar({required this.tabs});
-
-  final List<String> tabs;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: TdsColors.superficie, borderRadius: BorderRadius.circular(25)),
-      child: TabBar(
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        indicatorSize: TabBarIndicatorSize.tab,
-        indicator: BoxDecoration(color: TdsColors.acento, borderRadius: BorderRadius.circular(25)),
-        labelColor: TdsColors.sobreAcento,
-        unselectedLabelColor: TdsColors.textoSecundario,
-        labelStyle: TdsText.label(12),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 14),
-        tabs: [for (final t in tabs) Tab(height: 38, text: t)],
       ),
     );
   }

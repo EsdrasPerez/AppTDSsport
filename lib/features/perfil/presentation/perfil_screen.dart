@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/router/rutas.dart';
 import '../../../core/theme/tds_colors.dart';
 import '../../../core/widgets/notificacion.dart';
-import '../../perfil/presentation/widgets/historial_resumen.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../providers/perfil_providers.dart';
+import 'widgets/historial_resumen.dart';
 
-class PerfilScreen extends StatefulWidget {
+class PerfilScreen extends ConsumerStatefulWidget {
   const PerfilScreen({super.key});
 
   @override
-  State<PerfilScreen> createState() => _PerfilScreenState();
+  ConsumerState<PerfilScreen> createState() => _PerfilScreenState();
 }
 
-class _PerfilScreenState extends State<PerfilScreen> {
+class _PerfilScreenState extends ConsumerState<PerfilScreen> {
   final _nameController = TextEditingController();
   final _telefonoController = TextEditingController();
   
@@ -31,14 +35,10 @@ class _PerfilScreenState extends State<PerfilScreen> {
     if (user == null) return;
 
     try {
-      final response = await Supabase.instance.client
-          .from('perfiles') 
-          // '*': el proyecto en la nube no tiene la columna fecha_nacimiento
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
+      // El proyecto en la nube no tiene la columna fecha_nacimiento
+      final response = await ref.read(perfilRepositoryProvider).obtenerDatosEditables(user.id);
 
-      if (response != null) {
+      if (response != null && mounted) {
         setState(() {
           _tieneFechaNacimiento = response.containsKey('fecha_nacimiento');
           _nameController.text = response['nombre'] ?? '';
@@ -85,21 +85,15 @@ class _PerfilScreenState extends State<PerfilScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final newName = _nameController.text.trim();
-      final newPhone = _telefonoController.text.trim();
-      final newDate = _fechaNacimiento != null 
-          ? "${_fechaNacimiento!.year}-${_fechaNacimiento!.month.toString().padLeft(2, '0')}-${_fechaNacimiento!.day.toString().padLeft(2, '0')}"
-          : null;
-
-      // ACTUALIZAR EN LA BASE DE DATOS (Asegúrate de que 'usuarios' sea el nombre de tu tabla)
-      await Supabase.instance.client
-          .from('perfiles') 
-          .update({
-            'nombre': newName,
-            'telefono': newPhone,
-            if (_tieneFechaNacimiento) 'fecha_nacimiento': newDate,
-          })
-          .eq('id', user.id);
+      await ref.read(perfilRepositoryProvider).actualizarPerfil(
+            usuarioId: user.id,
+            nombre: _nameController.text.trim(),
+            telefono: _telefonoController.text.trim(),
+            fechaNacimiento: _fechaNacimiento,
+            conFechaNacimiento: _tieneFechaNacimiento,
+          );
+      // La barra lateral muestra el nombre: se vuelve a leer el perfil
+      ref.invalidate(perfilActualProvider);
 
       if (mounted) {
         Notificacion.exito(context, 'Tu perfil se guardó correctamente.', titulo: 'Perfil guardado');
@@ -116,9 +110,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
   }
 
   Future<void> _cerrarSesion() async {
-    await Supabase.instance.client.auth.signOut();
+    await ref.read(authRepositoryProvider).cerrarSesion();
     if (mounted) {
-      context.go('/login');
+      context.go(Rutas.login);
     }
   }
 

@@ -16,3 +16,13 @@ final torneosActivosProvider = FutureProvider<List<Torneo>>((ref) {
   ref.watch(usuarioIdProvider);
   return ref.watch(partidosRepositoryProvider).obtenerTorneosActivos();
 });
+
+/// Torneos activos que tienen al menos un partido: los únicos que se ofrecen para crear quiniela.
+final torneosConPartidosProvider = FutureProvider<List<Torneo>>((ref) async {
+  final (torneos, partidos) = await (
+    ref.watch(torneosActivosProvider.future),
+    ref.watch(partidosProvider(null).future),
+  ).wait;
+  final conPartidos = partidos.map((p) => p.torneoId).toSet();
+  return torneos.where((t) => conPartidos.contains(t.id)).toList();
+});

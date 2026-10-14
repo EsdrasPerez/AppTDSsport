@@ -26,7 +26,7 @@ class EstadisticasHistorial {
   final int? mejorPosicion;
   final int puntosAcumulados;
 
-  /// Sobre las quinielas con ganador (las anuladas no cuentan).
+  /// Porcentaje de quinielas ganadas sobre las terminadas.
   int get porcentajeVictorias => ganadas + perdidas == 0 ? 0 : (ganadas * 100 / (ganadas + perdidas)).round();
 }
 

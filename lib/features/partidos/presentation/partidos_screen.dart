@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/widgets/tds_ui.dart';
 import '../domain/partido.dart';
 import '../providers/partidos_providers.dart';
-import 'widgets/partido_cards.dart';
 import 'widgets/partidos_filtros.dart';
+import 'widgets/torneo_secciones.dart';
 
 class PartidosScreen extends ConsumerStatefulWidget {
   const PartidosScreen({super.key, this.tabInicial});
@@ -63,15 +63,20 @@ class _PartidosScreenState extends ConsumerState<PartidosScreen> {
     );
   }
 
-  Widget _buildContenido(List<Partido> todos) {
+  Widget _buildContenido(List<Partido> lista) {
+    // Solo ligas activas (en curso o por iniciar); las finalizadas no aparecen ni sus partidos
+    final todos = lista.where((p) => p.torneoActivo).toList();
     int contar(TabPartidos tab) => todos.where((p) => _enTab(p, tab)).length;
     final torneos = todos.map((p) => p.torneo).toSet().toList()..sort();
     final visibles = _ordenar(todos
         .where((p) => _enTab(p, _tab) && (_torneoSeleccionado == null || p.torneo == _torneoSeleccionado))
         .toList());
+    // Por torneo (solo torneos con partidos), cada uno con su orden y su "Crear quiniela"
+    final grupos = agruparPorTorneo(visibles).values.toList()
+      ..sort((a, b) => a.first.torneo.compareTo(b.first.torneo));
 
     final vacio = switch (_tab) {
-      TabPartidos.todos => 'No hay partidos registrados',
+      TabPartidos.todos => 'No hay partidos de ligas activas',
       TabPartidos.enVivo => 'No hay partidos en juego ahora mismo',
       TabPartidos.finalizados => 'Aún no hay resultados',
     };
@@ -106,11 +111,9 @@ class _PartidosScreenState extends ConsumerState<PartidosScreen> {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
             sliver: SliverList.separated(
-              itemCount: visibles.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 16),
-              itemBuilder: (_, i) => visibles[i].estado == EstadoPartido.futuro
-                  ? FuturoCard(partido: visibles[i])
-                  : MarcadorCard(partido: visibles[i]),
+              itemCount: grupos.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 32),
+              itemBuilder: (_, i) => SeccionTorneo(partidos: grupos[i]),
             ),
           ),
         ],

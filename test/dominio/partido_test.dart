@@ -54,4 +54,16 @@ void main() {
     expect(p.golesLocal, isNull);
     expect(p.tieneMarcador, isFalse);
   });
+
+  test('búsqueda por equipo: uno o "A vs B" en cualquier orden, sin mayúsculas ni acentos', () {
+    final p = partido(); // Municipal vs Comunicaciones
+    expect(p.coincideConBusqueda(''), isTrue);
+    expect(p.coincideConBusqueda('muni'), isTrue);
+    expect(p.coincideConBusqueda('COMUNICACIÓN'), isTrue);
+    expect(p.coincideConBusqueda('Municipal vs Comunicaciones'), isTrue);
+    expect(p.coincideConBusqueda('comu vs muni'), isTrue);
+    expect(p.coincideConBusqueda('muni vs'), isTrue);
+    expect(p.coincideConBusqueda('muni vs xelajú'), isFalse);
+    expect(p.coincideConBusqueda('antigua'), isFalse);
+  });
 }

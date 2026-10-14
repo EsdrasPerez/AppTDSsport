@@ -124,6 +124,31 @@ class Partido extends Equatable {
   /// Partido FUTURO de un torneo activo: se puede crear quiniela para su torneo.
   bool get permiteCrearQuiniela => estado == EstadoPartido.futuro && torneoActivo;
 
+  /// Búsqueda por equipo: "muni" busca en los dos equipos; "muni vs comu" busca ese
+  /// enfrentamiento en cualquier orden. Sin distinguir mayúsculas ni acentos.
+  bool coincideConBusqueda(String texto) {
+    final q = _sinAcentos(texto.trim());
+    if (q.isEmpty) return true;
+    final l = _sinAcentos(local.nombre);
+    final v = _sinAcentos(visitante.nombre);
+    final partes = q.split(RegExp(r'\s+vs\.?\s*|\s*vs\.?\s+')).map((s) => s.trim()).toList();
+    if (partes.length == 2) {
+      final (a, b) = (partes[0], partes[1]);
+      return (l.contains(a) && v.contains(b)) || (l.contains(b) && v.contains(a));
+    }
+    return l.contains(q) || v.contains(q);
+  }
+
+  static String _sinAcentos(String s) {
+    const de = 'áéíóúüñ';
+    const a = 'aeiouun';
+    final minus = s.toLowerCase();
+    return String.fromCharCodes(minus.runes.map((r) {
+      final i = de.indexOf(String.fromCharCode(r));
+      return i < 0 ? r : a.codeUnitAt(i);
+    }));
+  }
+
   @override
   List<Object?> get props =>
       [id, torneoId, torneo, torneoActivo, estado, local, visitante, golesLocal, golesVisitante, fecha];
