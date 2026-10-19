@@ -22,7 +22,27 @@ class AuthRepository {
     required String password,
     required String nombre,
   }) async {
-    final response = await _db.auth.signUp(email: email.trim(), password: password, data: {'nombre': nombre.trim()});
+    final response = await _db.auth.signUp(
+      email: email.trim(),
+      password: password,
+      data: {'nombre': nombre.trim()},
+    );
+
+    if (response.user != null &&
+        response.user!.identities != null &&
+        response.user!.identities!.isEmpty) {
+      throw const AuthException(
+        'Ya existe una cuenta registrada con este correo electrónico.',
+        code: 'user_already_exists',
+      );
+    }
+
+    if (response.user == null && response.session == null) {
+      throw const AuthException(
+        'No se pudo registrar el usuario. Por favor verifica tus datos e inténtalo de nuevo.',
+      );
+    }
+
     // Con "confirmar correo" activo en Supabase, signUp devuelve usuario SIN sesión.
     return response.session != null ? ResultadoRegistro.conSesion : ResultadoRegistro.confirmarCorreo;
   }

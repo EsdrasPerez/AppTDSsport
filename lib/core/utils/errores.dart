@@ -14,6 +14,12 @@ String mensajeDeExcepcion(Object e) {
       texto.contains('TimeoutException')) {
     return 'No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.';
   }
+  if (e is Exception) {
+    final limpio = texto.replaceFirst('Exception: ', '').trim();
+    if (limpio.isNotEmpty && !limpio.startsWith('Instance of')) {
+      return limpio;
+    }
+  }
   return 'Ocurrió un error inesperado. Inténtalo de nuevo.';
 }
 
@@ -28,32 +34,50 @@ class MensajeUsuario implements Exception {
 
 String _mensajePostgrest(PostgrestException e) => switch (e.code) {
       // RLS: el partido ya no acepta pronósticos (o la acción no está permitida)
-      '42501' => 'El partido ya comenzó: los pronósticos están cerrados.',
+      '42501' => 'El partido ya comenzó o no tienes permisos para esta acción.',
       // Valor duplicado (clave única)
-      '23505' => 'Ya eres parte de esta quiniela.',
+      '23505' => 'El registro ya existe en el sistema.',
       // raise exception dentro de una RPC: el mensaje ya está escrito para el usuario
       'P0001' => e.message,
       'PGRST116' => 'No se encontró la información solicitada.',
-      _ => 'No se pudo completar la operación. Inténtalo de nuevo.',
+      _ => e.message.isNotEmpty ? e.message : 'No se pudo completar la operación. Inténtalo de nuevo.',
     };
 
 String _mensajeAuth(AuthException e) => switch (e.code) {
       'invalid_credentials' => 'Correo o contraseña incorrectos.',
       'email_not_confirmed' => 'Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja de entrada.',
-      'user_already_exists' || 'email_exists' => 'Ya existe una cuenta con ese correo.',
-      'weak_password' => 'La contraseña es demasiado débil.',
+      'user_already_exists' || 'email_exists' => 'Ya existe una cuenta con ese correo electrónico.',
+      'weak_password' => 'La contraseña es demasiado débil. Debe tener al menos 6 caracteres.',
       'over_email_send_rate_limit' || 'over_request_rate_limit' =>
         'Demasiados intentos. Espera un momento y vuelve a intentarlo.',
-      'validation_failed' => 'Revisa los datos ingresados.',
+      'validation_failed' => 'Revisa los datos ingresados: correo o contraseña inválidos.',
       'user_not_found' => 'No existe una cuenta con ese correo.',
       'session_expired' || 'refresh_token_not_found' => 'Tu sesión expiró. Inicia sesión de nuevo.',
-      _ => _mensajeAuthPorTexto(e.message.toLowerCase()),
+      _ => _mensajeAuthPorTexto(e.message, original: e.message),
     };
 
 /// Servidores sin código de error: se reconoce por el texto del mensaje.
-String _mensajeAuthPorTexto(String msg) {
-  if (msg.contains('email not confirmed')) return _mensajeAuth(AuthException('', code: 'email_not_confirmed'));
-  if (msg.contains('invalid login credentials')) return _mensajeAuth(AuthException('', code: 'invalid_credentials'));
-  if (msg.contains('already registered')) return _mensajeAuth(AuthException('', code: 'user_already_exists'));
+String _mensajeAuthPorTexto(String msg, {String? original}) {
+  final m = msg.toLowerCase();
+  if (m.contains('email not confirmed')) return 'Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja de entrada.';
+  if (m.contains('invalid login credentials') || m.contains('invalid credentials')) return 'Correo o contraseña incorrectos.';
+  if (m.contains('already registered') || m.contains('already in use') || m.contains('user already exists') || m.contains('email already')) {
+    return 'Ya existe una cuenta con ese correo electrónico.';
+  }
+  if (m.contains('password') && (m.contains('least') || m.contains('short') || m.contains('characters') || m.contains('weak'))) {
+    return 'La contraseña es demasiado débil. Debe tener al menos 6 caracteres.';
+  }
+  if (m.contains('valid email') || m.contains('invalid email') || m.contains('email address: invalid')) {
+    return 'El formato del correo electrónico no es válido.';
+  }
+  if (m.contains('rate limit') || m.contains('too many requests')) {
+    return 'Demasiados intentos. Espera un momento y vuelve a intentarlo.';
+  }
+  if (m.contains('signup is disabled') || m.contains('signups not allowed')) {
+    return 'El registro de nuevos usuarios está deshabilitado temporalmente.';
+  }
+  if (original != null && original.trim().isNotEmpty) {
+    return original.trim();
+  }
   return 'No se pudo completar la autenticación. Inténtalo de nuevo.';
 }

@@ -79,7 +79,7 @@ class QuinielasRepository {
       if (res['success'] == false) {
         throw MensajeUsuario((res['mensaje'] ?? res['error'] ?? 'No se pudo crear la quiniela.').toString());
       }
-      final codigo = (res['codigo_acceso'] ?? res['codigo']).toString();
+      final codigo = (res['codigo_generado'] ?? res['codigo_acceso'] ?? res['codigo']).toString();
       final id = res['quiniela_id'] ?? res['id'];
       if (id != null) return (id: id.toString(), codigo: codigo);
       return _idPorCodigo(codigo);
@@ -88,8 +88,8 @@ class QuinielasRepository {
   }
 
   Future<({String id, String codigo})> _idPorCodigo(String codigo) async {
-    final q = await _db.from('quinielas').select('id').eq('codigo_acceso', codigo).single();
-    return (id: q['id'].toString(), codigo: codigo);
+    final q = await _db.from('quinielas').select('id, codigo_acceso').eq('codigo_acceso', codigo).single();
+    return (id: q['id'].toString(), codigo: (q['codigo_acceso'] ?? codigo).toString());
   }
 
   /// Camino anterior (dos llamadas, no atómico). Solo si no hay ninguna migración aplicada.
@@ -101,6 +101,7 @@ class QuinielasRepository {
     final userId = _usuarioId;
     for (var intento = 0; intento < 5; intento++) {
       final Map<String, dynamic> quiniela;
+      final nuevoCodigo = generarCodigo();
       try {
         quiniela = await _db
             .from('quinielas')
@@ -108,7 +109,7 @@ class QuinielasRepository {
               'torneo_id': torneoId,
               'creador_id': userId,
               'nombre': nombre,
-              'codigo_acceso': generarCodigo(),
+              'codigo_acceso': nuevoCodigo,
               'limite_usuarios': limiteUsuarios,
             })
             .select('id, codigo_acceso')
@@ -117,27 +118,82 @@ class QuinielasRepository {
         if (e.code == '23505') continue; // código repetido: probar otro
         rethrow;
       }
-      await unirse(quiniela['codigo_acceso'] as String);
-      return (id: quiniela['id'].toString(), codigo: quiniela['codigo_acceso'] as String);
+      final cod = quiniela['codigo_acceso']?.toString() ?? nuevoCodigo;
+      await unirse(cod);
+      return (id: quiniela['id'].toString(), codigo: cod);
     }
     throw const MensajeUsuario('No se pudo generar un código único. Intenta de nuevo.');
   }
 
-  /// Une al usuario actual a la quiniela con ese código (RPC join_quiniela). Devuelve el id.
+  /// Une al usuario actual a la quiniela con ese código (RPC join_quiniela o consulta directa). Devuelve el id.
   Future<String> unirse(String codigo) async {
-    _usuarioId;
-    final res = await _db.rpc('join_quiniela', params: {'codigo_ingresado': codigo.trim().toUpperCase()});
-    if (res is Map && res['success'] == true) return res['quiniela_id'].toString();
-    throw MensajeUsuario((res is Map ? (res['error'] ?? res['mensaje'] ?? res['message'])?.toString() : null) ?? 'No se pudo unir a la quiniela.');
+    final userId = _usuarioId;
+    final codigoNormalizado = codigo.trim().toUpperCase();
+
+    try {
+      final res = await _db.rpc('join_quiniela', params: {'codigo_ingresado': codigoNormalizado});
+      if (res is Map) {
+        if (res['success'] == true && res['quiniela_id'] != null) {
+          return res['quiniela_id'].toString();
+        }
+        if (res['success'] == false) {
+          final msj = (res['mensaje'] ?? res['error'] ?? res['message'])?.toString();
+          if (msj != null && msj.isNotEmpty) {
+            throw MensajeUsuario(msj);
+          }
+        }
+      }
+    } catch (e) {
+      if (e is MensajeUsuario) rethrow;
+    }
+
+    final quiniela = await _db
+        .from('quinielas')
+        .select('id, limite_usuarios')
+        .eq('codigo_acceso', codigoNormalizado)
+        .maybeSingle();
+
+    if (quiniela == null) {
+      throw const MensajeUsuario('No se encontró ninguna quiniela con este código de 5 dígitos.');
+    }
+
+    final quinielaId = quiniela['id'].toString();
+    final limite = (quiniela['limite_usuarios'] as num?)?.toInt() ?? 50;
+
+    final yaEsta = await _db
+        .from('quiniela_usuarios')
+        .select('id')
+        .eq('quiniela_id', quinielaId)
+        .eq('usuario_id', userId)
+        .maybeSingle();
+
+    if (yaEsta != null) {
+      return quinielaId;
+    }
+
+    final miembros = await _db
+        .from('quiniela_usuarios')
+        .select('id')
+        .eq('quiniela_id', quinielaId);
+    if ((miembros as List).length >= limite) {
+      throw const MensajeUsuario('Esta quiniela ya alcanzó el cupo máximo de participantes.');
+    }
+
+    await _db.from('quiniela_usuarios').insert({
+      'quiniela_id': quinielaId,
+      'usuario_id': userId,
+      'puntos_totales': 0,
+    });
+
+    return quinielaId;
   }
 
-  /// Alfabeto sin 0/O ni 1/I (join_quiniela compara en mayúsculas).
-  static const alfabetoCodigo = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  static const largoCodigo = 8;
+  static const alfabetoCodigo = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  static const largoCodigo = 5;
 
   static String generarCodigo() {
     final rnd = Random.secure();
-    return List.generate(largoCodigo, (_) => alfabetoCodigo[rnd.nextInt(alfabetoCodigo.length)]).join();
+    return (10000 + rnd.nextInt(90000)).toString();
   }
 
   // ---------------------------------------------------------------------------
