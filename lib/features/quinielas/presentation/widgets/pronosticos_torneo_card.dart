@@ -5,6 +5,7 @@ import '../../../../core/theme/tds_text.dart';
 import '../../../../core/utils/formatos.dart';
 import '../../../../core/widgets/tds_ui.dart';
 import '../../../partidos/domain/partido.dart';
+import '../../../partidos/presentation/widgets/detalles_partido.dart';
 import '../../../partidos/presentation/widgets/estado_partido_pill.dart';
 import '../../domain/quiniela_models.dart';
 import 'pronostico_card.dart';
@@ -22,6 +23,7 @@ class PronosticosTorneoCard extends StatefulWidget {
     this.subtitulo,
     this.limite,
     this.buscador = false,
+    this.filtroMarcador = false,
     this.guardarPorPartido = false,
     this.puedeEditar = false,
     this.partidoElegido,
@@ -37,6 +39,9 @@ class PronosticosTorneoCard extends StatefulWidget {
 
   /// Barra para buscar partidos por equipo ("Municipal" o "Municipal vs Comunicaciones").
   final bool buscador;
+
+  /// Botones para ver todos los partidos, solo los que aún no tienen mi marcador o solo los que ya.
+  final bool filtroMarcador;
 
   /// En vez de un botón para todos, "Guardar" aparece solo en el partido seleccionado.
   final bool guardarPorPartido;
@@ -63,6 +68,7 @@ class _PronosticosTorneoCardState extends State<PronosticosTorneoCard> {
   bool _guardando = false;
   bool _verTodos = false;
   String _busqueda = '';
+  _FiltroMarcador _filtro = _FiltroMarcador.todos;
 
   /// Partido que el usuario tocó o editó por última vez (guardarPorPartido).
   String? _seleccionado;
@@ -190,7 +196,18 @@ class _PronosticosTorneoCardState extends State<PronosticosTorneoCard> {
   Widget build(BuildContext context) {
     // Buscando se muestran todos los que coinciden; sin búsqueda, los primeros [limite] y "Ver más"
     final buscando = _busqueda.trim().isNotEmpty;
-    final coinciden = widget.partidos.where((p) => p.coincideConBusqueda(_busqueda)).toList();
+    bool conMarcador(Partido p) => widget.pronosticos.containsKey(p.id);
+    final conMio = widget.partidos.where(conMarcador).length;
+    final coinciden = widget.partidos
+        .where(
+          (p) => switch (_filtro) {
+            _FiltroMarcador.todos => true,
+            _FiltroMarcador.sinMarcador => !conMarcador(p),
+            _FiltroMarcador.conMarcador => conMarcador(p),
+          },
+        )
+        .where((p) => p.coincideConBusqueda(_busqueda))
+        .toList();
     final limite = buscando ? null : widget.limite;
     final ocultos = limite == null ? 0 : coinciden.length - limite;
     final visibles = ocultos > 0 && !_verTodos ? coinciden.take(limite!).toList() : coinciden;
@@ -246,11 +263,46 @@ class _PronosticosTorneoCardState extends State<PronosticosTorneoCard> {
         ),
         const SizedBox(height: 4),
       ],
-      if (visibles.isEmpty && buscando)
+      if (widget.filtroMarcador) ...[
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: [
+            _BotonFiltro(
+              texto: 'Todos (${widget.partidos.length})',
+              icono: Icons.list,
+              activo: _filtro == _FiltroMarcador.todos,
+              onTap: () => setState(() => _filtro = _FiltroMarcador.todos),
+            ),
+            _BotonFiltro(
+              texto: 'Sin mi marcador (${widget.partidos.length - conMio})',
+              icono: Icons.edit_outlined,
+              activo: _filtro == _FiltroMarcador.sinMarcador,
+              onTap: () => setState(() => _filtro = _FiltroMarcador.sinMarcador),
+            ),
+            _BotonFiltro(
+              texto: 'Con mi marcador ($conMio)',
+              icono: Icons.check_circle_outline,
+              activo: _filtro == _FiltroMarcador.conMarcador,
+              onTap: () => setState(() => _filtro = _FiltroMarcador.conMarcador),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+      ],
+      if (visibles.isEmpty && (buscando || _filtro != _FiltroMarcador.todos))
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Text('Ningún partido coincide con "${_busqueda.trim()}".',
-              style: TdsText.body(13, color: TdsColors.textoSecundario)),
+          child: Text(
+            buscando
+                ? 'Ningún partido coincide con "${_busqueda.trim()}".'
+                : (_filtro == _FiltroMarcador.sinMarcador
+                      ? 'Ya pusiste tu marcador en todos los partidos pendientes.'
+                      : 'Aún no has puesto tu marcador en ningún partido pendiente.'),
+            style: TdsText.body(13, color: TdsColors.textoSecundario),
+          ),
         ),
       for (var i = 0; i < visibles.length; i++) ...[
         if (i > 0) const Divider(height: 1, color: TdsColors.borde),
@@ -308,6 +360,43 @@ class _PronosticosTorneoCardState extends State<PronosticosTorneoCard> {
 }
 
 /// Fila de un partido: fecha y estado arriba; local, marcador y visitante abajo.
+/// Filtro de la tarjeta: todos los partidos, sin mi marcador o con mi marcador.
+enum _FiltroMarcador { todos, sinMarcador, conMarcador }
+
+/// Botón píldora del filtro; el activo va en lima.
+class _BotonFiltro extends StatelessWidget {
+  const _BotonFiltro({required this.texto, required this.icono, required this.activo, required this.onTap});
+
+  final String texto;
+  final IconData icono;
+  final bool activo;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = activo ? TdsColors.onPrimaryContainer : TdsColors.onSurface;
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: activo ? TdsColors.primaryContainer : TdsColors.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icono, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(texto, style: TdsText.label(12, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _FilaPartido extends StatelessWidget {
   const _FilaPartido({
     super.key,
@@ -370,6 +459,8 @@ class _FilaPartido extends StatelessWidget {
               EstadoPartidoPill(estado: p.estado),
             ],
           ),
+          const SizedBox(height: 8),
+          DetallesPartido(partido: p),
           const SizedBox(height: 10),
           Row(
             children: [

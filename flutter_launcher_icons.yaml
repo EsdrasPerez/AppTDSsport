@@ -1,0 +1,11 @@
+# Ícono de la app en el celular.
+# Para regenerarlo después de cambiar algo aquí:  dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: assets/iconos/icono.png
+  android: true
+  ios: true
+  remove_alpha_ios: true
+
+  # Android 8 o superior (íconos adaptables: el sistema los recorta en círculo, gota, etc.)
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/iconos/icono.png

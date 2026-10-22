@@ -9,6 +9,7 @@ import '../../../core/theme/tds_text.dart';
 import '../../../core/widgets/tds_ui.dart';
 import '../data/quinielas_repository.dart';
 import '../providers/quinielas_acciones.dart';
+import '../providers/quinielas_providers.dart';
 
 /// Hoja "Unirse con código" (/quinielas/unirse?codigo=XXXX).
 class UnirseQuinielaSheet extends ConsumerStatefulWidget {
@@ -25,11 +26,12 @@ class _UnirseQuinielaSheetState extends ConsumerState<UnirseQuinielaSheet> {
   late final _codigoController = TextEditingController(text: _normalizar(widget.codigoInicial ?? ''));
   bool _uniendo = false;
 
+  /// Solo letras y números: los códigos de create_quiniela pueden traer 0 y 1.
   static String _normalizar(String texto) => texto
       .toUpperCase()
+      .replaceAll(RegExp('[^A-Z0-9]'), '')
       .split('')
-      .where(QuinielasRepository.alfabetoCodigo.contains)
-      .take(QuinielasRepository.largoCodigo)
+      .take(QuinielasRepository.largoMaximoCodigo)
       .join();
 
   @override
@@ -43,9 +45,30 @@ class _UnirseQuinielaSheetState extends ConsumerState<UnirseQuinielaSheet> {
     setState(() => _uniendo = true);
 
     try {
-      final id = await ref.read(quinielasAccionesProvider).unirse(_codigoController.text);
+      // Si ya estoy en esa quiniela no se intenta unir: se avisa y se abre la quiniela.
+      // (join_quiniela también lo rechaza con "Ya participas.")
+      final codigo = _codigoController.text;
+      final mias = await ref.read(misQuinielasProvider.future);
+      final yaEstoy = mias.where((q) => q.codigoAcceso.toUpperCase() == codigo).firstOrNull;
+      if (yaEstoy != null) {
+        if (!mounted) return;
+        Notificacion.advertencia(context, 'Ya participas en «${yaEstoy.nombre}».', titulo: 'Ya estás en esta quiniela');
+        context.go(Rutas.quiniela(yaEstoy.id));
+        return;
+      }
+
+      final id = await ref.read(quinielasAccionesProvider).unirse(codigo);
+      // El nombre es solo para el banner: el detalle lo vuelve a usar (queda en caché).
+      String? nombre;
+      try {
+        nombre = (await ref.read(quinielaDetalleProvider(id).future)).quiniela.nombre;
+      } catch (_) {}
       if (!mounted) return;
-      Notificacion.exito(context, 'Ya puedes hacer tus pronósticos.', titulo: '¡Te uniste a la quiniela!');
+      Notificacion.banner(
+        context,
+        nombre == null ? 'Ya puedes hacer tus pronósticos.' : 'Ya formas parte de «$nombre». Haz tus pronósticos.',
+        titulo: '¡Te uniste exitosamente!',
+      );
       context.go(Rutas.quiniela(id));
     } catch (e) {
       if (!mounted) return;
@@ -68,7 +91,7 @@ class _UnirseQuinielaSheetState extends ConsumerState<UnirseQuinielaSheet> {
             children: [
               Text('Unirse con código', style: TdsText.headline(22)),
               const SizedBox(height: 4),
-              Text('Escribe el código de 8 caracteres que te compartieron.',
+              Text('Escribe el código de 5 caracteres que te compartieron.',
                   style: TdsText.body(13, color: TdsColors.onSurfaceVariant)),
               const SizedBox(height: 20),
               TextFormField(
@@ -79,9 +102,9 @@ class _UnirseQuinielaSheetState extends ConsumerState<UnirseQuinielaSheet> {
                 autocorrect: false,
                 style: TdsText.stats(28, color: TdsColors.primaryContainer).copyWith(letterSpacing: 6),
                 inputFormatters: [_CodigoFormatter(_normalizar)],
-                decoration: const InputDecoration(hintText: 'ABCD2345'),
+                decoration: const InputDecoration(hintText: 'AB3F7'),
                 validator: (v) =>
-                    (v?.length ?? 0) == QuinielasRepository.largoCodigo ? null : 'El código tiene 8 caracteres',
+                    (v?.length ?? 0) >= QuinielasRepository.largoCodigo ? null : 'El código tiene 5 caracteres',
                 onFieldSubmitted: (_) => _unirse(),
               ),
               const SizedBox(height: 24),

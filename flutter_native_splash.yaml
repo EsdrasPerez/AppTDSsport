@@ -1,0 +1,12 @@
+# Pantalla de inicio (la que se ve al abrir la app, antes de que cargue Flutter).
+# Para regenerarla después de cambiar algo aquí:  dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/iconos/logo_inicio.png
+
+  # Android 12 o superior muestra un ícono redondo en lugar de la imagen completa
+  android_12:
+    color: "#FFFFFF"
+    image: assets/iconos/icono.png
+
+  web: false

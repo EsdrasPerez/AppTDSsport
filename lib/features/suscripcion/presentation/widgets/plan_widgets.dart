@@ -5,6 +5,7 @@ import '../../../../core/theme/tds_text.dart';
 import '../../../../core/utils/formatos.dart';
 import '../../../../core/widgets/tds_ui.dart';
 import '../../../perfil/domain/perfil.dart';
+import '../../domain/plan_suscripcion.dart';
 import '../../domain/precios.dart';
 
 // -----------------------------------------------------------------------------
@@ -30,14 +31,33 @@ class PlanInfo {
     required this.precioMensual,
     required this.beneficios,
     required this.color,
+    this.base,
   });
+
+  /// Tarjeta de un plan de la tabla planes: nombre, descripción y precio vienen de la base;
+  /// colores y beneficios, de [planPro] o [planVip] según el tipo del plan.
+  factory PlanInfo.desde(PlanSuscripcion p) {
+    final modelo = p.tipo == PlanUsuario.vip ? planVip : planPro;
+    return PlanInfo(
+      plan: p.tipo,
+      nombre: p.nombre.toUpperCase(),
+      descripcion: (p.descripcion?.isNotEmpty ?? false) ? p.descripcion! : modelo.descripcion,
+      precioMensual: p.precio,
+      beneficios: modelo.beneficios,
+      color: modelo.color,
+      base: p,
+    );
+  }
 
   final PlanUsuario plan;
   final String nombre;
   final String descripcion;
-  final int precioMensual;
+  final num precioMensual;
   final List<Beneficio> beneficios;
   final Color color;
+
+  /// El plan de la tabla planes que se cobra (null en [planPro] / [planVip], que solo son modelos).
+  final PlanSuscripcion? base;
 }
 
 // TODO(decision): D1 — "Quinielas sin límite" se quitó porque el plan gratis no tiene límite.

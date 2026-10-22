@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/utils/texto.dart';
+
 /// Estados de la tabla estados_partido. El orden es el que se usa al ordenar listas.
 enum EstadoPartido {
   futuro(1),
@@ -82,6 +84,8 @@ class Partido extends Equatable {
     this.golesLocal,
     this.golesVisitante,
     this.fecha,
+    this.jornada,
+    this.estadio,
   });
 
   final String id;
@@ -97,6 +101,12 @@ class Partido extends Equatable {
   final int? golesVisitante;
   final DateTime? fecha;
 
+  /// Texto de la base ("6" o "Cuartos de final"); null si está vacío.
+  final String? jornada;
+  final String? estadio;
+
+  static String? _texto(Object? valor) => switch (valor?.toString().trim()) { '' || null => null, final t => t };
+
   factory Partido.fromMap(Map<String, dynamic> map) {
     final torneo = map['torneos'] as Map<String, dynamic>?;
     return Partido(
@@ -110,6 +120,8 @@ class Partido extends Equatable {
       golesLocal: map['goles_local'] as int?,
       golesVisitante: map['goles_visitante'] as int?,
       fecha: map['fecha_hora'] == null ? null : DateTime.tryParse(map['fecha_hora'])?.toLocal(),
+      jornada: _texto(map['jornada']),
+      estadio: _texto(map['estadio']),
     );
   }
 
@@ -127,10 +139,10 @@ class Partido extends Equatable {
   /// Búsqueda por equipo: "muni" busca en los dos equipos; "muni vs comu" busca ese
   /// enfrentamiento en cualquier orden. Sin distinguir mayúsculas ni acentos.
   bool coincideConBusqueda(String texto) {
-    final q = _sinAcentos(texto.trim());
+    final q = sinAcentos(texto.trim());
     if (q.isEmpty) return true;
-    final l = _sinAcentos(local.nombre);
-    final v = _sinAcentos(visitante.nombre);
+    final l = sinAcentos(local.nombre);
+    final v = sinAcentos(visitante.nombre);
     final partes = q.split(RegExp(r'\s+vs\.?\s*|\s*vs\.?\s+')).map((s) => s.trim()).toList();
     if (partes.length == 2) {
       final (a, b) = (partes[0], partes[1]);
@@ -139,17 +151,7 @@ class Partido extends Equatable {
     return l.contains(q) || v.contains(q);
   }
 
-  static String _sinAcentos(String s) {
-    const de = 'áéíóúüñ';
-    const a = 'aeiouun';
-    final minus = s.toLowerCase();
-    return String.fromCharCodes(minus.runes.map((r) {
-      final i = de.indexOf(String.fromCharCode(r));
-      return i < 0 ? r : a.codeUnitAt(i);
-    }));
-  }
-
   @override
   List<Object?> get props =>
-      [id, torneoId, torneo, torneoActivo, estado, local, visitante, golesLocal, golesVisitante, fecha];
+      [id, torneoId, torneo, torneoActivo, estado, local, visitante, golesLocal, golesVisitante, fecha, jornada, estadio];
 }

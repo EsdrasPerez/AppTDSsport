@@ -10,6 +10,8 @@ const selectPartido = '''
   goles_local,
   goles_visitante,
   estado_id,
+  jornada,
+  estadio,
   torneos ( * ),
   local:equipos!local_id ( id, nombre, escudo_url ),
   visitante:equipos!visitante_id ( id, nombre, escudo_url )

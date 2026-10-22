@@ -21,7 +21,7 @@ import '../widgets/plan_widgets.dart';
 class PagoScreen extends ConsumerStatefulWidget {
   const PagoScreen({super.key, required this.plan});
 
-  /// 'pro' o 'vip'
+  /// Id del plan en la tabla planes.
   final String plan;
 
   @override
@@ -37,7 +37,11 @@ class _PagoScreenState extends ConsumerState<PagoScreen> {
 
   bool _procesando = false;
 
-  PlanInfo get _plan => widget.plan == 'vip' ? planVip : planPro;
+  /// El plan que se paga (de planesProvider; null mientras carga o si ya no está disponible).
+  PlanInfo? get _plan {
+    final base = ref.read(planesProvider).valueOrNull?.where((p) => p.id == widget.plan).firstOrNull;
+    return base == null ? null : PlanInfo.desde(base);
+  }
 
   @override
   void initState() {
@@ -68,7 +72,7 @@ class _PagoScreenState extends ConsumerState<PagoScreen> {
     setState(() => _procesando = true);
     try {
       final resultado = await ref.read(suscripcionControllerProvider).pagar(
-            plan: _plan.plan,
+            plan: _plan!.base!,
             tarjeta: DatosTarjeta(
               titular: _titular.text,
               numero: _numero.text,
@@ -90,6 +94,18 @@ class _PagoScreenState extends ConsumerState<PagoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final planes = ref.watch(planesProvider);
+    if (_plan == null) {
+      return Scaffold(
+        appBar: const TdsAppBar(titulo: 'PAGO SEGURO'),
+        body: planes.isLoading
+            ? const CargandoView()
+            : planes.hasError
+                ? ErrorView.desde(planes.error!, onReintentar: () => ref.invalidate(planesProvider))
+                : const VacioView(icono: Icons.workspace_premium_outlined, texto: 'Este plan ya no está disponible'),
+      );
+    }
+
     return PopScope(
       canPop: !_procesando,
       child: Scaffold(
@@ -121,7 +137,7 @@ class _PagoScreenState extends ConsumerState<PagoScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _ResumenCompra(plan: _plan),
+                _ResumenCompra(plan: _plan!),
                 const SizedBox(height: 20),
                 _VistaTarjeta(
                   numero: _numero.text,
@@ -207,7 +223,7 @@ class _PagoScreenState extends ConsumerState<PagoScreen> {
                   key: const Key('boton-pagar'),
                   onPressed: _procesando ? null : _pagar,
                   icon: const Icon(Icons.lock),
-                  label: Text('PAGAR ${precioMensualTexto(_plan)}'),
+                  label: Text('PAGAR ${precioMensualTexto(_plan!)}'),
                 ),
                 const SizedBox(height: 16),
                 Row(

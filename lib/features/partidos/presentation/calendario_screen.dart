@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/router/rutas.dart';
 import '../../../core/theme/tds_colors.dart';
 import '../../../core/theme/tds_text.dart';
 import '../../../core/utils/formatos.dart';
@@ -189,7 +187,7 @@ class _CalendarioScreenState extends ConsumerState<CalendarioScreen> {
             for (final grupo in grupos.values)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                child: SeccionTorneo(partidos: grupo),
+                child: SeccionTorneo(partidos: grupo, conPronostico: true),
               ),
           if (otros.isNotEmpty)
             Padding(
@@ -502,13 +500,6 @@ class _BannerQuiniela extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          TdsPillButton(
-            icon: Icons.arrow_forward,
-            label: 'Boleto',
-            primary: true,
-            onTap: () => context.go(Rutas.misPronosticosPendientes()),
           ),
         ],
       ),

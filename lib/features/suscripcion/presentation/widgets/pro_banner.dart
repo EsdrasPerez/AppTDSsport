@@ -37,8 +37,7 @@ class ProBanner extends ConsumerWidget {
           : (p!.planRenovar ? 'Se renueva el ${Formatos.fecha(vence)}' : 'Activo hasta el ${Formatos.fecha(vence)}');
     }
 
-    return TdsCard(
-      glow: true,
+    return TdsCard.modulo(
       onTap: () => context.go(Rutas.suscripcion),
       child: Row(
         children: [

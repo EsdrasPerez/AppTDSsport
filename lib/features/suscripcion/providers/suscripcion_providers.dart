@@ -1,16 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/supabase/supabase_providers.dart';
-import '../../perfil/domain/perfil.dart';
 import '../../perfil/providers/perfil_providers.dart';
 import '../data/pagos_repository.dart';
 import '../data/pasarela_pago_interna.dart';
 import '../domain/pasarela_pago.dart';
+import '../domain/plan_suscripcion.dart';
 
 final pagosRepositoryProvider = Provider((ref) => PagosRepository(ref.watch(supabaseProvider)));
 
 /// Pasarela en uso. Para conectar un procesador real, cambiar solo esta línea.
 final pasarelaPagoProvider = Provider<PasarelaPago>((ref) => PasarelaPagoInterna(ref.watch(pagosRepositoryProvider)));
+
+/// Planes disponibles (tabla planes, solo los activos).
+final planesProvider = FutureProvider<List<PlanSuscripcion>>((ref) {
+  ref.watch(usuarioIdProvider);
+  return ref.watch(pagosRepositoryProvider).obtenerPlanes();
+});
 
 /// Historial "Mis pagos".
 final misPagosProvider = FutureProvider<List<Pago>>((ref) {
@@ -24,7 +30,7 @@ class SuscripcionController {
 
   final Ref _ref;
 
-  Future<ResultadoPago> pagar({required PlanUsuario plan, required DatosTarjeta tarjeta}) async {
+  Future<ResultadoPago> pagar({required PlanSuscripcion plan, required DatosTarjeta tarjeta}) async {
     final resultado = await _ref.read(pasarelaPagoProvider).cobrar(plan: plan, tarjeta: tarjeta);
     _ref
       ..invalidate(perfilActualProvider)

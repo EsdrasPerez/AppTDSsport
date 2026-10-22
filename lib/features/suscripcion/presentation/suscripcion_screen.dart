@@ -24,7 +24,7 @@ class SuscripcionScreen extends ConsumerStatefulWidget {
 class _SuscripcionScreenState extends ConsumerState<SuscripcionScreen> {
   bool _procesando = false;
 
-  void _suscribirme(PlanInfo plan) => context.push(Rutas.pago(plan.plan.codigo.toLowerCase()));
+  void _suscribirme(PlanInfo plan) => context.push(Rutas.pago(plan.base!.id));
 
   Future<void> _cancelar(Perfil perfil) async {
     final hasta = perfil.planVenceEn;
@@ -89,15 +89,31 @@ class _SuscripcionScreenState extends ConsumerState<SuscripcionScreen> {
                     HeroPro(esPro: false),
                     const SizedBox(height: 24),
                   ],
-                  PlanCard(
-                    plan: planPro,
-                    destacado: true,
-                    activo: plan == PlanUsuario.pro,
-                    onComprar: () => _suscribirme(planPro),
-                  ),
-                  const SizedBox(height: 24),
-                  PlanCard(plan: planVip, activo: plan == PlanUsuario.vip, onComprar: () => _suscribirme(planVip)),
-                  const SizedBox(height: 24),
+                  // Una tarjeta por cada plan activo de la tabla planes
+                  ...ref.watch(planesProvider).when(
+                        skipLoadingOnRefresh: true,
+                        loading: () => [const Padding(padding: EdgeInsets.all(24), child: CargandoView())],
+                        error: (e, _) => [ErrorView.desde(e, onReintentar: () => ref.invalidate(planesProvider))],
+                        data: (planes) => planes.isEmpty
+                            ? [
+                                const VacioView(
+                                  icono: Icons.workspace_premium_outlined,
+                                  texto: 'No hay planes disponibles por ahora',
+                                  compacto: true,
+                                ),
+                              ]
+                            : [
+                                for (final (i, base) in planes.indexed) ...[
+                                  PlanCard(
+                                    plan: PlanInfo.desde(base),
+                                    destacado: i == 0,
+                                    activo: plan == base.tipo,
+                                    onComprar: () => _suscribirme(PlanInfo.desde(base)),
+                                  ),
+                                  const SizedBox(height: 24),
+                                ],
+                              ],
+                      ),
                   PlanGratuitoCard(
                     activo: plan == PlanUsuario.gratis,
                     onVolver: () {

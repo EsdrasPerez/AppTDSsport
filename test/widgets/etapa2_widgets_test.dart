@@ -25,6 +25,7 @@ import 'package:tdsport_app/features/quinielas/presentation/widgets/pronosticos_
 import 'package:tdsport_app/features/quinielas/presentation/widgets/quiniela_resumen_cards.dart';
 import 'package:tdsport_app/features/quinielas/providers/quinielas_providers.dart';
 import 'package:tdsport_app/features/suscripcion/domain/pasarela_pago.dart';
+import 'package:tdsport_app/features/suscripcion/domain/plan_suscripcion.dart';
 import 'package:tdsport_app/features/suscripcion/presentation/pago/pago_screen.dart';
 import 'package:tdsport_app/features/suscripcion/providers/suscripcion_providers.dart';
 
@@ -35,7 +36,7 @@ class _PasarelaColgada implements PasarelaPago {
   final completer = Completer<ResultadoPago>();
 
   @override
-  Future<ResultadoPago> cobrar({required PlanUsuario plan, required DatosTarjeta tarjeta}) => completer.future;
+  Future<ResultadoPago> cobrar({required PlanSuscripcion plan, required DatosTarjeta tarjeta}) => completer.future;
 }
 
 /// Repositorio falso: guarda los pronósticos en memoria (como la tabla pronosticos).
@@ -85,9 +86,12 @@ void main() {
     addTearDown(tester.view.reset);
 
     final pasarela = _PasarelaColgada();
-    await tester.pumpWidget(_app(const PagoScreen(plan: 'pro'), [
+    // El plan viene de la tabla planes
+    const pro = PlanSuscripcion(id: 'plan-pro', nombre: 'PRO', precio: 50, moneda: 'GTQ');
+    await tester.pumpWidget(_app(const PagoScreen(plan: 'plan-pro'), [
       perfilActualProvider.overrideWith((ref) async => gratis),
       pasarelaPagoProvider.overrideWithValue(pasarela),
+      planesProvider.overrideWith((ref) async => [pro]),
     ]));
     await tester.pump();
 
@@ -134,8 +138,12 @@ void main() {
     ]));
     await tester.pumpAndSettle();
 
-    // El campo de goles local del partido elegido (p8 = 9.º partido, 17.º campo) tiene el foco y se ve
-    final campos = find.byType(TextField);
+    // El campo de goles local del partido elegido (p8 = 9.º partido, 17.º campo) tiene el foco y se ve.
+    // Solo los campos de goles: el buscador de la tarjeta también es un TextField.
+    final campos = find.descendant(
+      of: find.byType(PronosticosTorneoCard),
+      matching: find.byWidgetPredicate((w) => w is TextField && w.decoration?.prefixIcon == null),
+    );
     expect(campos, findsNWidgets(20));
     EditableText editable(int i) =>
         tester.widget<EditableText>(find.descendant(of: campos.at(i), matching: find.byType(EditableText)));

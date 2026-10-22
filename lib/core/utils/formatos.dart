@@ -4,13 +4,14 @@ import 'package:intl/intl.dart';
 class Formatos {
   Formatos._();
 
-  static final _hora = DateFormat('HH:mm');
+  // 12 horas con AM/PM ("9:00 PM"). en_US viene incluido en intl (es pondría "p. m.").
+  static final _hora = DateFormat('h:mm a', 'en_US');
   static final _diaMes = DateFormat('dd/MM');
   static final _fechaCompleta = DateFormat('dd/MM/yyyy');
 
   static DateTime _soloFecha(DateTime f) => DateTime(f.year, f.month, f.day);
 
-  /// "21:00"
+  /// "9:00 PM"
   static String hora(DateTime? fecha) => fecha == null ? '--:--' : _hora.format(fecha);
 
   /// "Hoy", "Mañana", "Ayer" o "13/10"
@@ -25,7 +26,7 @@ class Formatos {
     };
   }
 
-  /// "Hoy 21:00"
+  /// "Hoy 9:00 PM"
   static String diaHora(DateTime? fecha) => '${dia(fecha)} ${hora(fecha)}';
 
   /// "13/10"

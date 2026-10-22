@@ -9,35 +9,81 @@ import '../../../../core/theme/tds_text.dart';
 import '../../../../core/utils/formatos.dart';
 import '../../../../core/widgets/tds_ui.dart';
 import '../../../partidos/domain/partido.dart';
+import '../../../partidos/presentation/widgets/detalles_partido.dart';
 import '../../../partidos/presentation/widgets/estado_partido_pill.dart';
 import '../../../perfil/providers/perfil_providers.dart';
 import '../../domain/etiquetas_puntos.dart';
 import '../../domain/quiniela_models.dart';
 import '../../providers/quinielas_acciones.dart';
+import '../../providers/quinielas_providers.dart';
 import 'pronostico_card.dart';
 import 'resultado_quiniela_badge.dart';
 
-/// Card grande de la quiniela destacada: métricas, avance y partidos desplegables.
+/// Card grande de Mis Quinielas (en curso, por iniciar y finalizadas): métricas, avance, participantes,
+/// partidos desplegables y copiar código. Tocando el nombre se abre la quiniela.
 class QuinielaDestacadaCard extends StatelessWidget {
-  const QuinielaDestacadaCard({super.key, required this.quiniela});
+  const QuinielaDestacadaCard({super.key, required this.quiniela, this.miId});
 
   final ResumenQuiniela quiniela;
+
+  /// Para la etiqueta "Creada por ti" y el "(tú)" de participantes.
+  final String? miId;
 
   @override
   Widget build(BuildContext context) {
     final q = quiniela;
     final pctAvance = (q.avance * 100).round();
-    final porJugar = q.porJugar;
+    final finalizada = !q.activa;
+    // Activa: partidos en juego o por jugar. Finalizada: todos, con sus resultados.
+    final partidos = finalizada ? q.partidos : q.porJugar;
 
     return TdsCard(
       glow: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Cabecera(quiniela: q),
-          const SizedBox(height: 12),
-          Text(q.nombre, style: TdsText.headline(26).copyWith(height: 1.15)),
-          Text(q.torneoNombre, style: TdsText.body(13, color: TdsColors.onSurfaceVariant)),
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => context.push(Rutas.quiniela(q.id, soloLectura: finalizada)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _Cabecera(quiniela: q),
+                          if (finalizada)
+                            ResultadoQuinielaBadge(
+                              resultado: q.resultado,
+                              lugar: q.lugar,
+                              total: q.participantes,
+                              empate: q.empateEnPrimero,
+                            ),
+                          if (q.esCreador(miId))
+                            TdsPill(
+                              child: Text(
+                                'CREADA POR TI',
+                                style: TdsText.label(10, color: TdsColors.secondaryContainer),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(q.nombre, style: TdsText.headline(26).copyWith(height: 1.15)),
+                      Text(q.torneoNombre, style: TdsText.body(13, color: TdsColors.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: TdsColors.onSurfaceVariant),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(12),
@@ -79,35 +125,42 @@ class QuinielaDestacadaCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
+          _ParticipantesDe(quiniela: q, miId: miId),
+          const SizedBox(height: 20),
           Row(
             children: [
               const Icon(Icons.checklist, color: TdsColors.primaryContainer, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'PARTIDOS EN JUEGO Y POR JUGAR (${porJugar.length})',
+                  finalizada
+                      ? 'PRONÓSTICOS Y RESULTADOS (${partidos.length})'
+                      : 'PARTIDOS EN JUEGO Y POR JUGAR (${partidos.length})',
                   style: TdsText.label(12, letterSpacing: 0.8),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          if (porJugar.isEmpty)
+          if (partidos.isEmpty)
             Text(
-              'No quedan partidos en juego ni por jugar.',
+              finalizada ? 'Este torneo aún no tiene partidos.' : 'No quedan partidos en juego ni por jugar.',
               style: TdsText.body(13, color: TdsColors.onSurfaceVariant),
             )
           else
-            _PartidosConBuscador(quiniela: q, partidos: porJugar),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: TdsPillButton(
-              icon: Icons.share_outlined,
-              label: 'Copiar código',
-              onTap: () => copiarCodigo(context, q.codigoAcceso),
+            _PartidosConBuscador(quiniela: q, partidos: partidos),
+          // Una quiniela finalizada ya no recibe invitados
+          if (!finalizada) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: TdsPillButton(
+                icon: Icons.share_outlined,
+                label: 'Copiar código',
+                onTap: () => copiarCodigo(context, q.codigoAcceso),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -414,6 +467,8 @@ class PronosticoFila extends StatelessWidget {
                   Text(partidoTexto, style: TdsText.label(12)),
                 ],
               ),
+              const SizedBox(height: 4),
+              DetallesPartido(partido: p),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
@@ -623,6 +678,233 @@ class _PronosticoChip extends StatelessWidget {
           decoration: fallado ? TextDecoration.lineThrough : null,
           decorationColor: color,
         ),
+      ),
+    );
+  }
+}
+
+/// Card del panel principal: nombre, métricas y los partidos a los que ya les asigné marcador.
+class QuinielaPanelCard extends StatelessWidget {
+  const QuinielaPanelCard({super.key, required this.quiniela, this.maxPartidos = 3});
+
+  final ResumenQuiniela quiniela;
+  final int maxPartidos;
+
+  @override
+  Widget build(BuildContext context) {
+    final q = quiniela;
+    final jugables = q.partidos.where((p) => p.estado != EstadoPartido.suspendido);
+    // En juego y por jugar primero; luego los ya jugados, del más reciente al más antiguo.
+    final conMarcador = [
+      ...q.porJugar.where((p) => q.pronosticos.containsKey(p.id)),
+      ...q.finalizados.reversed.where((p) => q.pronosticos.containsKey(p.id)),
+    ];
+    final restantes = conMarcador.length - maxPartidos;
+
+    return TdsCard.modulo(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => context.push(Rutas.quiniela(q.id)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _Cabecera(quiniela: q, compacta: true),
+                      const SizedBox(height: 6),
+                      Text(q.nombre, style: TdsText.headline(18)),
+                      Text(q.torneoNombre, style: TdsText.body(12, color: TdsColors.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: TdsColors.onSurfaceVariant),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(color: TdsColors.surfaceContainerHigh, borderRadius: BorderRadius.circular(16)),
+              child: Row(
+                children: [
+                  _Dato(titulo: 'Con marcador', valor: '${conMarcador.length} de ${jugables.length}'),
+                  _Dato(
+                    titulo: 'Posición',
+                    valor: '#${q.lugar} de ${q.participantes}',
+                    color: TdsColors.secondaryContainer,
+                  ),
+                  _Dato(titulo: 'Puntos', valor: '${q.puntos} pts', color: TdsColors.primaryContainer),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (conMarcador.isEmpty)
+              Text(
+                'Aún no has asignado goles. Toca para hacer tus pronósticos.',
+                style: TdsText.body(13, color: TdsColors.onSurfaceVariant),
+              )
+            else ...[
+              Text('PARTIDOS CON TU MARCADOR', style: TdsText.label(11, color: TdsColors.onSurfaceVariant)),
+              const SizedBox(height: 6),
+              for (final p in conMarcador.take(maxPartidos))
+                _MarcadorAsignado(partido: p, pronostico: q.pronosticos[p.id]!),
+              if (restantes > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('y $restantes más ➔', style: TdsText.label(12, color: TdsColors.primaryContainer)),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Participantes de una quiniela de la lista (misma consulta que la tabla de posiciones del detalle).
+class _ParticipantesDe extends ConsumerWidget {
+  const _ParticipantesDe({required this.quiniela, this.miId});
+
+  final ResumenQuiniela quiniela;
+  final String? miId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final aviso = TdsText.body(12, color: TdsColors.onSurfaceVariant);
+    return ref
+        .watch(posicionesProvider(quiniela.id))
+        .when(
+          skipLoadingOnRefresh: true,
+          loading: () => Text('Cargando participantes…', style: aviso),
+          error: (_, _) => Text('No se pudieron cargar los participantes.', style: aviso),
+          data: (lista) => ParticipantesQuiniela(
+            posiciones: lista,
+            creadorId: quiniela.creadorId,
+            limiteUsuarios: quiniela.limiteUsuarios,
+            miId: miId,
+          ),
+        );
+  }
+}
+
+/// Quiénes están unidos a la quiniela (detalle), en orden de posición.
+/// Se marca al creador con una corona y a mí con "(tú)".
+class ParticipantesQuiniela extends StatelessWidget {
+  const ParticipantesQuiniela({
+    super.key,
+    required this.posiciones,
+    required this.creadorId,
+    required this.limiteUsuarios,
+    this.miId,
+  });
+
+  final List<Posicion> posiciones;
+  final String creadorId;
+  final int limiteUsuarios;
+  final String? miId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'PARTICIPANTES (${posiciones.length} / $limiteUsuarios)',
+          style: TdsText.label(11, color: TdsColors.onSurfaceVariant),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final p in posiciones)
+              _ChipParticipante(
+                nombre: p.usuarioId == miId ? '${p.nombre} (tú)' : p.nombre,
+                creador: p.usuarioId == creadorId,
+                yo: p.usuarioId == miId,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ChipParticipante extends StatelessWidget {
+  const _ChipParticipante({required this.nombre, required this.creador, required this.yo});
+
+  final String nombre;
+  final bool creador;
+  final bool yo;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = yo ? TdsColors.primaryContainer : TdsColors.onSurface;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(4, 4, 10, 4),
+      decoration: BoxDecoration(color: TdsColors.surfaceContainerHigh, borderRadius: BorderRadius.circular(999)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 10,
+            backgroundColor: color.withValues(alpha: 0.2),
+            child: Text(nombre.isEmpty ? '?' : nombre[0].toUpperCase(), style: TdsText.label(10, color: color)),
+          ),
+          const SizedBox(width: 6),
+          Text(nombre, style: TdsText.label(12, color: color)),
+          if (creador) ...[
+            const SizedBox(width: 4),
+            const Icon(Icons.workspace_premium, size: 14, color: TdsColors.secondaryContainer),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// "Local 2 - 1 Visitante" con mi marcador; a la derecha la fecha o los puntos si ya se jugó.
+class _MarcadorAsignado extends StatelessWidget {
+  const _MarcadorAsignado({required this.partido, required this.pronostico});
+
+  final Partido partido;
+  final Pronostico pronostico;
+
+  @override
+  Widget build(BuildContext context) {
+    final finalizado = partido.estado == EstadoPartido.finalizado;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: '${partido.local.nombre}  '),
+                TextSpan(
+                  text: '${pronostico.golesLocal} - ${pronostico.golesVisitante}',
+                  style: TdsText.label(13, color: TdsColors.primaryContainer),
+                ),
+                TextSpan(text: '  ${partido.visitante.nombre}'),
+              ]),
+              style: TdsText.body(13),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            finalizado ? '+${pronostico.puntos} pts' : Formatos.diaHora(partido.fecha),
+            style: TdsText.label(
+              11,
+              color: finalizado && pronostico.puntos > 0 ? TdsColors.primaryContainer : TdsColors.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

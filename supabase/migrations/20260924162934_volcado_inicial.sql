@@ -65,6 +65,62 @@ CREATE TABLE public.pronosticos (
     UNIQUE (usuario_id, partido_id, quiniela_id)
 );
 
+create table public.planes (
+  id                       uuid primary key default gen_random_uuid(),
+  nombre                   varchar,
+  descripcion              text,
+  precio                   numeric,
+  moneda                   varchar,
+  periodo                  varchar,
+  limite_quinielas         integer,
+  permite_crear_quinielas  boolean,
+  activo                   boolean,
+  creado_en                timestamptz default now()
+);
+
+create table public.metodos_pago (
+  id              uuid primary key default gen_random_uuid(),
+  usuario_id      uuid,
+  marca           varchar,
+  ultimos4        char(4),
+  titular         varchar,
+  mes_vence       smallint,
+  anio_vence      smallint,
+  alias           varchar,
+  predeterminada  boolean,
+  proveedor       varchar,
+  token_pasarela  text,
+  creado_en       timestamptz default now()
+);
+
+create table public.suscripciones (
+  id                     uuid primary key default gen_random_uuid(),
+  usuario_id             uuid,
+  plan_id                uuid,
+  metodo_pago_id         uuid,
+  precio                 numeric,
+  moneda                 varchar,
+  estado                 varchar,
+  inicia_en              timestamptz,
+  vence_en               timestamptz,
+  renovacion_automatica  boolean,
+  cancelada_en           timestamptz,
+  creado_en              timestamptz default now()
+);
+
+create table public.pagos (
+  id                  uuid primary key default gen_random_uuid(),
+  usuario_id          uuid,
+  suscripcion_id      uuid,
+  importe             numeric,
+  moneda              varchar,
+  estado              varchar,
+  proveedor           varchar,
+  referencia_externa  text,
+  creado_en           timestamptz default now(),
+  confirmado_en       timestamptz
+);
+
 -- 5. Insertar estados iniciales para que la web funcione
 INSERT INTO public.estados_partido (id, descripcion) VALUES
 (1, 'FUTURO'),

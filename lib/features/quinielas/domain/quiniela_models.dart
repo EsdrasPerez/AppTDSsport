@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/utils/texto.dart';
 import '../../partidos/domain/partido.dart';
 import '../../perfil/domain/perfil.dart';
 import 'posiciones.dart';
@@ -161,6 +162,12 @@ class ResumenQuiniela extends Equatable {
   int get participantes => puntosDeTodos.length;
 
   bool esCreador(String? usuarioId) => usuarioId != null && creadorId == usuarioId;
+
+  /// Búsqueda por nombre de la quiniela, torneo o código, sin distinguir mayúsculas ni acentos.
+  bool coincideConBusqueda(String texto) {
+    final q = sinAcentos(texto.trim());
+    return q.isEmpty || [nombre, torneoNombre, codigoAcceso].any((s) => sinAcentos(s).contains(q));
+  }
 
   List<Partido> get _jugables => partidos.where((p) => p.estado != EstadoPartido.suspendido).toList();
   List<Partido> get finalizados => partidos.where((p) => p.estado == EstadoPartido.finalizado).toList();

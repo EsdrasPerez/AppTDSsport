@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -33,6 +34,39 @@ class Notificacion {
       error(context, mensajeDeExcepcion(e), titulo: titulo);
 
   static String mensajeDeExcepcion(Object e) => errores.mensajeDeExcepcion(e);
+
+  /// Banner arriba de la pantalla (no abajo como las cajitas), para avisos importantes.
+  /// Se cierra solo después de [duracion] o con la X; sigue visible aunque se cambie de pantalla.
+  static void banner(
+    BuildContext context,
+    String mensaje, {
+    required String titulo,
+    TipoNotificacion tipo = TipoNotificacion.exito,
+    Duration duracion = const Duration(seconds: 5),
+  }) {
+    final messenger = ScaffoldMessenger.of(context);
+    var cerrado = false;
+
+    messenger.hideCurrentMaterialBanner();
+    messenger
+        .showMaterialBanner(
+          MaterialBanner(
+            backgroundColor: Colors.transparent,
+            dividerColor: Colors.transparent,
+            elevation: 0,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            content: _Caja(titulo: titulo, mensaje: mensaje, tipo: tipo, onCerrar: messenger.hideCurrentMaterialBanner),
+            actions: const [SizedBox.shrink()],
+          ),
+        )
+        .closed
+        .whenComplete(() => cerrado = true);
+
+    // Solo cierra este banner si sigue en pantalla (no uno que se haya mostrado después)
+    Timer(duracion, () {
+      if (!cerrado && messenger.mounted) messenger.hideCurrentMaterialBanner();
+    });
+  }
 
   static void mostrar(
     BuildContext context,

@@ -211,9 +211,10 @@ class _Contenido extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: TdsTabBar(tabs: [
+              // Deslizable como en Mis pronósticos: con las cantidades no caben fijas en pantallas angostas
+              child: TdsTabBar(desplazable: true, tabs: [
                 if (conPendientes) 'PENDIENTES (${d.pendientes.length})',
-                'FINALIZADOS',
+                'FINALIZADOS (${d.finalizados.length})',
                 'POSICIONES',
               ]),
             ),
@@ -222,7 +223,8 @@ class _Contenido extends StatelessWidget {
               child: TabBarView(
                 children: [
                   if (conPendientes)
-                    // Una sola tarjeta con todos los partidos pendientes del torneo
+                    // Una sola tarjeta con todos los partidos pendientes del torneo, con buscador y
+                    // filtro por marcador (todos / sin mi marcador / con mi marcador)
                     _Lista(
                       onRecargar: onRecargar,
                       vacio: 'No hay partidos pendientes',
@@ -234,6 +236,8 @@ class _Contenido extends StatelessWidget {
                         onGuardar: onGuardar,
                         partidoElegido: partidoId,
                         puedeEditar: puedeEditar,
+                        buscador: true,
+                        filtroMarcador: true,
                       ),
                     ),
                   _Lista(
@@ -330,6 +334,13 @@ class _Encabezado extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               ResumenPosicion(lugar: yo?.lugar, total: detalle.posiciones.length, puntos: yo?.puntos ?? 0),
+              const SizedBox(height: 16),
+              ParticipantesQuiniela(
+                posiciones: detalle.posiciones,
+                creadorId: q.creadorId,
+                limiteUsuarios: q.limiteUsuarios,
+                miId: detalle.miId,
+              ),
             ],
           ),
         ),

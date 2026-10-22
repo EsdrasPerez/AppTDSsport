@@ -11,7 +11,7 @@ import '../domain/quiniela_models.dart';
 import '../providers/quinielas_providers.dart';
 import 'widgets/quiniela_resumen_cards.dart';
 
-/// Mis Quinielas: solo las ACTIVAS. Las finalizadas pasan al historial del perfil.
+/// Mis Quinielas: todas, con la misma card, separadas en En curso, Por iniciar y Finalizadas.
 class MisQuinielasScreen extends ConsumerStatefulWidget {
   const MisQuinielasScreen({super.key});
 
@@ -21,33 +21,50 @@ class MisQuinielasScreen extends ConsumerStatefulWidget {
 
 class _MisQuinielasScreenState extends ConsumerState<MisQuinielasScreen> {
   EstadoQuiniela? _filtro; // null = todas
+  String _busqueda = '';
 
-  Future<void> _recargar() => ref.refresh(misQuinielasProvider.future);
+  Future<void> _recargar() {
+    ref.invalidate(posicionesProvider);
+    return ref.refresh(misQuinielasProvider.future);
+  }
 
   @override
   Widget build(BuildContext context) {
     final activas = ref.watch(quinielasActivasProvider);
-    final historial = ref.watch(historialQuinielasProvider).valueOrNull ?? [];
+    final finalizadas = ref.watch(historialQuinielasProvider).valueOrNull ?? [];
 
     return Scaffold(
       appBar: TdsAppBar(titulo: 'MIS QUINIELAS', onRefrescar: _recargar),
       body: AsyncValueView(
         value: activas,
         onReintentar: _recargar,
-        data: (lista) => _buildContenido(lista, historial.length),
+        data: (lista) => _buildContenido(lista, finalizadas),
       ),
     );
   }
 
-  Widget _buildContenido(List<ResumenQuiniela> activas, int totalHistorial) {
-    int contar(EstadoQuiniela e) => activas.where((q) => q.estado == e).length;
-    final filtradas = _filtro == null ? activas : activas.where((q) => q.estado == _filtro).toList();
-
-    // Destacada: la primera en curso; si no hay, la primera de la lista
-    final destacada =
-        filtradas.where((q) => q.estado == EstadoQuiniela.enCurso).firstOrNull ?? filtradas.firstOrNull;
-    final otras = filtradas.where((q) => q != destacada).toList();
+  Widget _buildContenido(List<ResumenQuiniela> activas, List<ResumenQuiniela> finalizadas) {
+    final todas = [...activas, ...finalizadas];
+    final buscando = _busqueda.trim().isNotEmpty;
+    // Filtros y secciones trabajan sobre las que coinciden con la búsqueda
+    final coinciden = todas.where((q) => q.coincideConBusqueda(_busqueda)).toList();
     final miId = ref.watch(usuarioIdProvider);
+
+    // Una sección por estado, en este orden; con un filtro elegido solo la suya
+    const titulos = {
+      EstadoQuiniela.enCurso: 'EN CURSO',
+      EstadoQuiniela.porIniciar: 'POR INICIAR',
+      EstadoQuiniela.finalizada: 'FINALIZADAS',
+    };
+    List<ResumenQuiniela> de(EstadoQuiniela e) => coinciden.where((q) => q.estado == e).toList();
+    final secciones = [
+      for (final e in titulos.keys)
+        if ((_filtro == null || _filtro == e) && de(e).isNotEmpty) (e, de(e)),
+    ];
+    // Encabezado de sección + sus cards, en una sola lista para el SliverList
+    final items = <Object>[
+      for (final (estado, lista) in secciones) ...[estado, ...lista],
+    ];
 
     return RefreshIndicator(
       onRefresh: _recargar,
@@ -63,7 +80,7 @@ class _MisQuinielasScreenState extends ConsumerState<MisQuinielasScreen> {
                     const TdsDot(color: TdsColors.primaryContainer, pulse: true),
                     const SizedBox(width: 6),
                     Text(
-                      '${activas.length} activas • ${contar(EstadoQuiniela.enCurso)} en curso',
+                      '${activas.length} activas • ${activas.where((q) => q.estado == EstadoQuiniela.enCurso).length} en curso',
                       style: TdsText.label(14, color: TdsColors.primaryContainer),
                     ),
                   ],
@@ -71,78 +88,102 @@ class _MisQuinielasScreenState extends ConsumerState<MisQuinielasScreen> {
                 const SizedBox(height: 16),
                 const _Acciones(),
                 const SizedBox(height: 16),
-                if (activas.isNotEmpty) ...[
+                if (todas.isNotEmpty) ...[
+                  TdsBuscador(
+                    hint: 'Buscar quiniela, torneo o código',
+                    onChanged: (v) => setState(() => _busqueda = v),
+                  ),
+                  const SizedBox(height: 12),
                   TdsFilterChipsRow(
                     chips: [
                       TdsFilterChip(
                           texto: 'Todas',
                           activo: _filtro == null,
-                          cantidad: activas.length,
+                          cantidad: coinciden.length,
                           onTap: () => setState(() => _filtro = null)),
                       TdsFilterChip(
                         texto: 'En Curso',
                         activo: _filtro == EstadoQuiniela.enCurso,
-                        cantidad: contar(EstadoQuiniela.enCurso),
+                        cantidad: de(EstadoQuiniela.enCurso).length,
                         punto: TdsColors.secondaryContainer,
                         onTap: () => setState(() => _filtro = EstadoQuiniela.enCurso),
                       ),
                       TdsFilterChip(
                         texto: 'Por Iniciar',
                         activo: _filtro == EstadoQuiniela.porIniciar,
-                        cantidad: contar(EstadoQuiniela.porIniciar),
+                        cantidad: de(EstadoQuiniela.porIniciar).length,
                         onTap: () => setState(() => _filtro = EstadoQuiniela.porIniciar),
+                      ),
+                      TdsFilterChip(
+                        texto: 'Finalizadas',
+                        activo: _filtro == EstadoQuiniela.finalizada,
+                        cantidad: de(EstadoQuiniela.finalizada).length,
+                        onTap: () => setState(() => _filtro = EstadoQuiniela.finalizada),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 8),
                 ],
-                if (filtradas.isEmpty)
+                if (items.isEmpty)
                   TdsCard(
                     child: VacioView(
                       icono: Icons.emoji_events_outlined,
-                      texto: activas.isEmpty ? 'No tienes quinielas activas' : 'No hay quinielas con este estado',
-                      subtitulo: activas.isEmpty ? 'Crea una o únete con el código de un amigo.' : null,
+                      texto: todas.isEmpty
+                          ? 'No tienes quinielas'
+                          : (buscando
+                                ? 'Ninguna quiniela coincide con "${_busqueda.trim()}"'
+                                : 'No hay quinielas con este estado'),
+                      subtitulo: todas.isEmpty ? 'Crea una o únete con el código de un amigo.' : null,
                       compacto: true,
-                      acciones: activas.isEmpty ? const [_Acciones(enFila: false)] : const [],
+                      acciones: todas.isEmpty ? const [_Acciones(enFila: false)] : const [],
                     ),
-                  )
-                else ...[
-                  QuinielaDestacadaCard(quiniela: destacada!),
-                  if (otras.isNotEmpty) ...[
-                    const SizedBox(height: 28),
-                    Row(
-                      children: [
-                        Expanded(child: Text('OTRAS QUINIELAS', style: TdsText.headline(20))),
-                        Text('${otras.length} activas', style: TdsText.label(12, color: TdsColors.onSurfaceVariant)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ],
+                  ),
               ],
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            sliver: SliverList.separated(
-              itemCount: otras.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 16),
-              itemBuilder: (_, i) => QuinielaCompactaCard(key: ValueKey(otras[i].id), quiniela: otras[i], miId: miId),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+            sliver: SliverList.builder(
+              itemCount: items.length,
+              itemBuilder: (_, i) => switch (items[i]) {
+                final EstadoQuiniela e => _TituloSeccion(
+                  titulo: titulos[e]!,
+                  cantidad: de(e).length,
+                  punto: e == EstadoQuiniela.enCurso,
+                ),
+                final ResumenQuiniela q => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: QuinielaDestacadaCard(key: ValueKey(q.id), quiniela: q, miId: miId),
+                ),
+                _ => const SizedBox.shrink(),
+              },
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-            sliver: SliverToBoxAdapter(
-              child: totalHistorial == 0
-                  ? const SizedBox.shrink()
-                  : Center(
-                      child: TextButton.icon(
-                        onPressed: () => context.push(Rutas.historial),
-                        icon: const Icon(Icons.history),
-                        label: Text('Ver historial ($totalHistorial)'),
-                      ),
-                    ),
-            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Título de una sección (EN CURSO, POR INICIAR, FINALIZADAS) con su cantidad.
+class _TituloSeccion extends StatelessWidget {
+  const _TituloSeccion({required this.titulo, required this.cantidad, this.punto = false});
+
+  final String titulo;
+  final int cantidad;
+  final bool punto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 12),
+      child: Row(
+        children: [
+          if (punto) ...[const TdsDot(color: TdsColors.primaryContainer, pulse: true), const SizedBox(width: 8)],
+          Expanded(child: Text(titulo, style: TdsText.headline(20))),
+          Text(
+            cantidad == 1 ? '1 quiniela' : '$cantidad quinielas',
+            style: TdsText.label(12, color: TdsColors.onSurfaceVariant),
           ),
         ],
       ),

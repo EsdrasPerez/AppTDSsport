@@ -133,7 +133,11 @@ class QuinielasRepository {
 
   /// Alfabeto sin 0/O ni 1/I (join_quiniela compara en mayúsculas).
   static const alfabetoCodigo = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  static const largoCodigo = 8;
+
+  /// Los códigos nuevos son de 5, como los de create_quiniela. Al unirse se aceptan hasta 10
+  /// (codigo_acceso es VARCHAR(10)) para no dejar fuera las quinielas creadas con 8.
+  static const largoCodigo = 5;
+  static const largoMaximoCodigo = 10;
 
   static String generarCodigo() {
     final rnd = Random.secure();

@@ -28,7 +28,15 @@ class EstadoPartidoPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (punto) ...[TdsDot(color: color, pulse: true), const SizedBox(width: 4)],
-          Text(texto, style: TdsText.label(10, color: color, letterSpacing: 0.8)),
+          // Flexible: con la hora en AM/PM ("Mañana 9:00 PM") no debe desbordar en filas angostas
+          Flexible(
+            child: Text(
+              texto,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TdsText.label(10, color: color, letterSpacing: 0.8),
+            ),
+          ),
         ],
       ),
     );

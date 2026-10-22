@@ -5,6 +5,7 @@ import '../../../../core/theme/tds_text.dart';
 import '../../../../core/utils/formatos.dart';
 import '../../../../core/widgets/tds_ui.dart';
 import '../../domain/partido.dart';
+import 'detalles_partido.dart';
 import 'estado_partido_pill.dart';
 
 /// Card de partido EN VIVO, FINALIZADO o SUSPENDIDO, con marcador grande.
@@ -63,6 +64,8 @@ class MarcadorCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          DetallesPartido(partido: partido, alineacion: WrapAlignment.center),
           const SizedBox(height: 4),
         ],
       ),
@@ -72,9 +75,12 @@ class MarcadorCard extends StatelessWidget {
 
 /// Card de partido FUTURO, con horario (crear quiniela está en el encabezado de su torneo).
 class FuturoCard extends StatelessWidget {
-  const FuturoCard({super.key, required this.partido});
+  const FuturoCard({super.key, required this.partido, this.pie});
 
   final Partido partido;
+
+  /// Debajo de los equipos (en el calendario, el botón "Realizar pronóstico").
+  final Widget? pie;
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +142,9 @@ class FuturoCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          DetallesPartido(partido: partido, alineacion: WrapAlignment.center),
+          if (pie != null) ...[const SizedBox(height: 16), pie!],
         ],
       ),
     );

@@ -8,6 +8,7 @@ import '../../../core/theme/tds_text.dart';
 import '../../../core/utils/formatos.dart';
 import '../../../core/widgets/tds_ui.dart';
 import '../../partidos/domain/partido.dart';
+import '../../partidos/presentation/widgets/detalles_partido.dart';
 import '../../partidos/presentation/widgets/estado_partido_pill.dart';
 import '../../perfil/providers/perfil_providers.dart';
 import '../domain/etiquetas_puntos.dart';
@@ -325,6 +326,8 @@ class _EnJuegoCard extends StatelessWidget {
               EstadoPartidoPill(estado: p.estado),
             ],
           ),
+          const SizedBox(height: 8),
+          DetallesPartido(partido: p),
           const SizedBox(height: 16),
           Row(
             children: [

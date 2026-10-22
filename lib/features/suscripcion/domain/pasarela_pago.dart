@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../../core/utils/errores.dart';
 import '../../perfil/domain/perfil.dart';
+import 'plan_suscripcion.dart';
 import 'tarjeta.dart';
 
 /// Datos que escribe el usuario. Viven solo en memoria del dispositivo:
@@ -24,6 +25,12 @@ class DatosTarjeta {
   String get ultimos4 {
     final n = soloDigitos(numero);
     return n.length < 4 ? '' : n.substring(n.length - 4);
+  }
+
+  /// Mes y año (4 dígitos) de "MM/AA", para metodos_pago.mes_vence / anio_vence. null si no es válido.
+  ({int mes, int anio})? get mesYAnio {
+    final m = RegExp(r'^(\d{2})/(\d{2})$').firstMatch(vencimiento.trim());
+    return m == null ? null : (mes: int.parse(m.group(1)!), anio: 2000 + int.parse(m.group(2)!));
   }
 
   /// null si todo es válido; si no, el primer problema encontrado.
@@ -67,7 +74,7 @@ class PagoRechazado extends MensajeUsuario {
 /// Punto único de cobro. Hoy: PasarelaPagoInterna. Mañana: el procesador de pagos real,
 /// sin cambiar las pantallas.
 abstract class PasarelaPago {
-  Future<ResultadoPago> cobrar({required PlanUsuario plan, required DatosTarjeta tarjeta});
+  Future<ResultadoPago> cobrar({required PlanSuscripcion plan, required DatosTarjeta tarjeta});
 }
 
 /// Un pago del historial "Mis pagos" (tabla pagos).

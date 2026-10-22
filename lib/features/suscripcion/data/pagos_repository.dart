@@ -2,9 +2,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/supabase/rpc_respaldo.dart';
 import '../../../core/utils/errores.dart';
-import '../../perfil/domain/perfil.dart';
 import '../domain/pasarela_pago.dart';
-import '../domain/precios.dart';
+import '../domain/plan_suscripcion.dart';
 import '../domain/tarjeta.dart';
 
 // este codigo es exclusivamente para pagos y suscripción (plan del perfil).
@@ -20,48 +19,90 @@ class PagosRepository {
     return id;
   }
 
-  /// RPC procesar_pago (migración 03): registra el pago, activa el plan y devuelve referencia y vencimiento.
-  /// El monto lo pone el servidor.
-  Future<ResultadoPago> procesarPago({
-    required PlanUsuario plan,
-    required MarcaTarjeta marca,
-    required String ultimos4,
-  }) {
+  /// Proveedor que se guarda en metodos_pago y pagos mientras no haya un procesador real.
+  static const _proveedor = 'interna';
+
+  /// Planes que se pueden contratar (planes.activo), del más barato al más caro.
+  Future<List<PlanSuscripcion>> obtenerPlanes() async {
+    final r = await _db.from('planes').select('*').eq('activo', true).order('precio', ascending: true);
+    return r.map(PlanSuscripcion.fromMap).where((p) => p.precio > 0).toList();
+  }
+
+  /// Registra el cobro en las tablas del volcado inicial, en este orden:
+  /// metodos_pago (marca, últimos 4, titular y vencimiento) → suscripciones (activa, 1 mes) → pagos (aprobado),
+  /// y activa el plan en perfiles (es_pro). Nunca se envían el número completo ni el CVV.
+  /// El precio y la moneda son los del plan en la tabla planes.
+  Future<ResultadoPago> procesarPago({required PlanSuscripcion plan, required DatosTarjeta tarjeta}) async {
     final id = _usuarioId;
-    return conRespaldo(
-      () async {
-        final r = await _db.rpc('procesar_pago', params: {
-          'p_plan': plan.codigo,
-          'p_marca': nombreMarca(marca),
-          'p_ultimos4': ultimos4,
-        });
-        return ResultadoPago(
-          referencia: r['referencia'] as String,
-          plan: PlanUsuario.desdeCodigo(r['plan'] as String?),
-          monto: r['monto'] as num,
-          fecha: DateTime.now(),
-          venceEn: DateTime.parse(r['vence_en'] as String).toLocal(),
-          marca: marca,
-          ultimos4: ultimos4,
-        );
-      },
-      // Sin la migración 03 no existe la tabla pagos: se activa PRO con el camino anterior.
-      () async {
-        await conRespaldo(
-          () => _db.rpc('activar_pro_demo'),
-          () => _db.from('perfiles').update({'es_pro': true}).eq('id', id),
-        );
-        final ahora = DateTime.now();
-        return ResultadoPago(
-          referencia: 'TDS-${ahora.millisecondsSinceEpoch.toRadixString(36).toUpperCase()}',
-          plan: plan,
-          monto: precioDe(plan),
-          fecha: ahora,
-          venceEn: DateTime(ahora.year, ahora.month + 1, ahora.day),
-          marca: marca,
-          ultimos4: ultimos4,
-        );
-      },
+    final ahora = DateTime.now();
+    final venceEn = DateTime(ahora.year, ahora.month + 1, ahora.day);
+    final monto = plan.precio;
+    final referencia = 'TDS-${ahora.millisecondsSinceEpoch.toRadixString(36).toUpperCase()}';
+    final vence = tarjeta.mesYAnio;
+
+    try {
+      final metodo = await _db
+          .from('metodos_pago')
+          .insert({
+            'usuario_id': id,
+            'marca': nombreMarca(tarjeta.marca),
+            'ultimos4': tarjeta.ultimos4,
+            'titular': tarjeta.titular.trim(),
+            'mes_vence': vence?.mes,
+            'anio_vence': vence?.anio,
+            'predeterminada': true,
+            'proveedor': _proveedor,
+          })
+          .select('id')
+          .single();
+
+      final suscripcion = await _db
+          .from('suscripciones')
+          .insert({
+            'usuario_id': id,
+            'plan_id': plan.id,
+            'metodo_pago_id': metodo['id'],
+            'precio': monto,
+            'moneda': plan.moneda,
+            'estado': 'ACTIVA',
+            'inicia_en': ahora.toUtc().toIso8601String(),
+            'vence_en': venceEn.toUtc().toIso8601String(),
+            'renovacion_automatica': true,
+          })
+          .select('id')
+          .single();
+
+      await _db.from('pagos').insert({
+        'usuario_id': id,
+        'suscripcion_id': suscripcion['id'],
+        'importe': monto,
+        'moneda': plan.moneda,
+        'estado': 'APROBADO',
+        'proveedor': _proveedor,
+        'referencia_externa': referencia,
+        'confirmado_en': ahora.toUtc().toIso8601String(),
+      });
+    } on PostgrestException catch (e) {
+      // RLS: la tabla existe pero no permite que el usuario inserte sus propios registros
+      if (e.code == '42501') {
+        throw const MensajeUsuario('No se pudo registrar el pago: la base no permite guardarlo (permisos).');
+      }
+      rethrow;
+    }
+
+    await conRespaldo(
+      () => _db.rpc('activar_pro_demo'),
+      () => _db.from('perfiles').update({'es_pro': true}).eq('id', id),
+    );
+
+    return ResultadoPago(
+      referencia: referencia,
+      plan: plan.tipo,
+      monto: monto,
+      fecha: ahora,
+      venceEn: venceEn,
+      marca: tarjeta.marca,
+      ultimos4: tarjeta.ultimos4,
     );
   }
 
@@ -78,11 +119,45 @@ class PagosRepository {
   }
 
   /// Historial "Mis pagos" (vacío si la tabla todavía no existe).
+  /// En el volcado las tablas no tienen llaves foráneas, así que el plan y la tarjeta de cada pago se
+  /// leen aparte: pagos → suscripciones (plan_id, metodo_pago_id) → planes / metodos_pago.
   Future<List<Pago>> obtenerMisPagos() => conRespaldo(
         () async {
-          final r = await _db.from('pagos').select('*').eq('usuario_id', _usuarioId).order('creado_en', ascending: false);
-          return r.map(Pago.fromMap).toList();
+          final pagos =
+              await _db.from('pagos').select('*').eq('usuario_id', _usuarioId).order('creado_en', ascending: false);
+          if (pagos.isEmpty) return <Pago>[];
+
+          final suscripciones = await _porId('suscripciones', 'id, plan_id, metodo_pago_id',
+              pagos.map((p) => p['suscripcion_id']));
+          final planes = await _porId('planes', 'id, nombre', suscripciones.values.map((s) => s['plan_id']));
+          final metodos =
+              await _porId('metodos_pago', 'id, marca, ultimos4', suscripciones.values.map((s) => s['metodo_pago_id']));
+
+          return [
+            for (final p in pagos)
+              () {
+                final s = suscripciones[p['suscripcion_id']?.toString()];
+                final metodo = metodos[s?['metodo_pago_id']?.toString()];
+                return Pago.fromMap({
+                  'referencia': p['referencia_externa'] ?? '',
+                  'plan': PlanSuscripcion.tipoDe(planes[s?['plan_id']?.toString()]?['nombre'] as String?).codigo,
+                  'monto': p['importe'],
+                  'marca': metodo?['marca'],
+                  'ultimos4': metodo?['ultimos4'],
+                  'estado': p['estado'],
+                  'creado_en': p['creado_en'],
+                });
+              }(),
+          ];
         },
         () async => <Pago>[],
       );
+
+  /// Filas de [tabla] con esos ids, por id (sin consultar si no hay ids).
+  Future<Map<String, Map<String, dynamic>>> _porId(String tabla, String columnas, Iterable<Object?> ids) async {
+    final unicos = {for (final id in ids) if (id != null) id.toString()}.toList();
+    if (unicos.isEmpty) return {};
+    final r = await _db.from(tabla).select(columnas).inFilter('id', unicos);
+    return {for (final f in r) f['id'].toString(): f};
+  }
 }
