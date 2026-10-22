@@ -4,6 +4,7 @@ import '../../../core/supabase/supabase_providers.dart';
 import '../../perfil/providers/perfil_providers.dart';
 import '../data/pagos_repository.dart';
 import '../data/pasarela_pago_interna.dart';
+import '../domain/limite_quinielas.dart';
 import '../domain/pasarela_pago.dart';
 import '../domain/plan_suscripcion.dart';
 
@@ -16,6 +17,12 @@ final pasarelaPagoProvider = Provider<PasarelaPago>((ref) => PasarelaPagoInterna
 final planesProvider = FutureProvider<List<PlanSuscripcion>>((ref) {
   ref.watch(usuarioIdProvider);
   return ref.watch(pagosRepositoryProvider).obtenerPlanes();
+});
+
+/// Límite de quinielas del plan del usuario (se revisa al crear o unirse a una quiniela).
+final limiteQuinielasProvider = FutureProvider<LimiteQuinielas>((ref) {
+  ref.watch(usuarioIdProvider);
+  return ref.watch(pagosRepositoryProvider).obtenerLimiteQuinielas();
 });
 
 /// Historial "Mis pagos".
@@ -34,13 +41,16 @@ class SuscripcionController {
     final resultado = await _ref.read(pasarelaPagoProvider).cobrar(plan: plan, tarjeta: tarjeta);
     _ref
       ..invalidate(perfilActualProvider)
-      ..invalidate(misPagosProvider);
+      ..invalidate(misPagosProvider)
+      ..invalidate(limiteQuinielasProvider);
     return resultado;
   }
 
   Future<void> cancelar() async {
     await _ref.read(pagosRepositoryProvider).cancelarSuscripcion();
-    _ref.invalidate(perfilActualProvider);
+    _ref
+      ..invalidate(perfilActualProvider)
+      ..invalidate(limiteQuinielasProvider);
   }
 }
 

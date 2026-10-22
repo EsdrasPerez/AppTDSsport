@@ -11,6 +11,8 @@ class PlanSuscripcion extends Equatable {
     required this.moneda,
     this.descripcion,
     this.periodo,
+    this.limiteQuinielas,
+    this.permiteCrearQuinielas = true,
   });
 
   final String id;
@@ -19,6 +21,10 @@ class PlanSuscripcion extends Equatable {
   final num precio;
   final String moneda;
   final String? periodo;
+
+  /// planes.limite_quinielas: máximo de quinielas activas (creadas + unidas). null = sin límite.
+  final int? limiteQuinielas;
+  final bool permiteCrearQuinielas;
 
   /// PRO o VIP según el nombre del plan ("VIP ..." = VIP; cualquier otro plan de pago = PRO).
   /// Sirve para los colores y beneficios de la tarjeta y para perfiles.es_pro.
@@ -34,8 +40,11 @@ class PlanSuscripcion extends Equatable {
         precio: m['precio'] is num ? m['precio'] as num : num.tryParse('${m['precio']}') ?? 0,
         moneda: (m['moneda'] as String?)?.trim().isNotEmpty == true ? (m['moneda'] as String).trim() : 'GTQ',
         periodo: (m['periodo'] as String?)?.trim(),
+        limiteQuinielas: (m['limite_quinielas'] as num?)?.toInt(),
+        permiteCrearQuinielas: m['permite_crear_quinielas'] ?? true,
       );
 
   @override
-  List<Object?> get props => [id, nombre, descripcion, precio, moneda, periodo];
+  List<Object?> get props =>
+      [id, nombre, descripcion, precio, moneda, periodo, limiteQuinielas, permiteCrearQuinielas];
 }

@@ -34,17 +34,25 @@ class PlanInfo {
     this.base,
   });
 
-  /// Tarjeta de un plan de la tabla planes: nombre, descripción y precio vienen de la base;
-  /// colores y beneficios, de [planPro] o [planVip] según el tipo del plan.
+  /// Tarjeta de un plan de la tabla planes: nombre, descripción, precio y lo que incluye
+  /// (limite_quinielas, permite_crear_quinielas) vienen de la base; solo el color depende del tipo.
   factory PlanInfo.desde(PlanSuscripcion p) {
-    final modelo = p.tipo == PlanUsuario.vip ? planVip : planPro;
+    final limite = p.limiteQuinielas;
     return PlanInfo(
       plan: p.tipo,
-      nombre: p.nombre.toUpperCase(),
-      descripcion: (p.descripcion?.isNotEmpty ?? false) ? p.descripcion! : modelo.descripcion,
+      nombre: p.nombre,
+      descripcion: p.descripcion ?? '',
       precioMensual: p.precio,
-      beneficios: modelo.beneficios,
-      color: modelo.color,
+      beneficios: [
+        limite == null
+            ? const Beneficio(Icons.emoji_events_outlined, 'Quinielas sin límite', 'entre las que creas y las de tus amigos.')
+            : Beneficio(Icons.emoji_events_outlined, 'Hasta $limite quinielas activas',
+                'entre las que creas y las de tus amigos.'),
+        p.permiteCrearQuinielas
+            ? const Beneficio(Icons.add_circle_outline, 'Crea tus propias quinielas', 'e invita a tus amigos con un código.')
+            : const Beneficio(Icons.group_add_outlined, 'Únete a quinielas', 'de tus amigos con su código.'),
+      ],
+      color: (p.tipo == PlanUsuario.vip ? planVip : planPro).color,
       base: p,
     );
   }

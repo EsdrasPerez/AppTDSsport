@@ -2,9 +2,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/supabase/rpc_respaldo.dart';
 import '../../../core/utils/errores.dart';
+import '../domain/limite_quinielas.dart';
 import '../domain/pasarela_pago.dart';
 import '../domain/plan_suscripcion.dart';
 import '../domain/tarjeta.dart';
+import 'suscripcion_vigente.dart';
 
 // este codigo es exclusivamente para pagos y suscripción (plan del perfil).
 // Solo se envían plan, marca y últimos 4 dígitos; nunca el número completo, el vencimiento ni el CVV.
@@ -26,6 +28,17 @@ class PagosRepository {
   Future<List<PlanSuscripcion>> obtenerPlanes() async {
     final r = await _db.from('planes').select('*').eq('activo', true).order('precio', ascending: true);
     return r.map(PlanSuscripcion.fromMap).where((p) => p.precio > 0).toList();
+  }
+
+  /// Límite de quinielas del plan del usuario: el de su suscripción vigente (planes.limite_quinielas),
+  /// aunque la haya cancelado, hasta que venza. Sin suscripción vigente, o si no se puede leer, el del Plan Gratuito.
+  Future<LimiteQuinielas> obtenerLimiteQuinielas() async {
+    try {
+      final plan = (await leerSuscripcionVigente(_db, _usuarioId))?.plan;
+      return plan == null ? const LimiteQuinielas.gratis() : LimiteQuinielas.dePlan(plan);
+    } on PostgrestException {
+      return const LimiteQuinielas.gratis();
+    }
   }
 
   /// Registra el cobro en las tablas del volcado inicial, en este orden:
@@ -106,15 +119,22 @@ class PagosRepository {
     );
   }
 
-  /// RPC cancelar_suscripcion: no se renueva; el plan sigue hasta plan_vence_en.
-  Future<void> cancelarSuscripcion() {
+  /// Cancela la suscripción vigente: queda CANCELADA y sin renovación, pero el plan sigue hasta vence_en
+  /// porque ese mes ya está pagado. Sin suscripción (usuarios PRO de antes), se quita el plan como antes.
+  Future<void> cancelarSuscripcion() async {
     final id = _usuarioId;
-    return conRespaldo(
-      () => _db.rpc('cancelar_suscripcion'),
-      () => conRespaldo(
-        () => _db.rpc('cancelar_pro_demo'),
-        () => _db.from('perfiles').update({'es_pro': false}).eq('id', id),
-      ),
+    final vigente = await leerSuscripcionVigente(_db, id);
+    if (vigente != null) {
+      await _db.from('suscripciones').update({
+        'estado': 'CANCELADA',
+        'cancelada_en': DateTime.now().toUtc().toIso8601String(),
+        'renovacion_automatica': false,
+      }).eq('id', vigente.id);
+      return;
+    }
+    await conRespaldo(
+      () => _db.rpc('cancelar_pro_demo'),
+      () => _db.from('perfiles').update({'es_pro': false}).eq('id', id),
     );
   }
 
