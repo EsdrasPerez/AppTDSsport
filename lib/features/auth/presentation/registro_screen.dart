@@ -40,27 +40,142 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
     setState(() => _cargando = true);
 
     try {
+      final emailLimpio = _emailController.text.trim();
       final resultado = await ref.read(authRepositoryProvider).registrarUsuario(
             nombre: _nombreController.text,
-            email: _emailController.text,
+            email: emailLimpio,
             password: _passwordController.text, // sin trim
           );
       if (!mounted) return;
 
-      if (resultado == ResultadoRegistro.confirmarCorreo) {
-        // Confirmación de correo activa: no hay sesión todavía
-        Notificacion.info(
-          context,
-          'Te enviamos un enlace a ${_emailController.text.trim()}. Confírmalo y luego inicia sesión.',
-          titulo: 'Revisa tu correo',
-        );
+      Notificacion.exito(
+        context,
+        'Cuenta creada exitosamente',
+        titulo: '¡Bienvenido!',
+      );
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: TdsColors.superficieAlta,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: TdsColors.exito.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_outline, color: TdsColors.exito, size: 28),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '¡Cuenta Creada!',
+                  style: TdsText.headline(20),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                resultado == ResultadoRegistro.confirmarCorreo
+                    ? 'Te hemos enviado un enlace de confirmación a $emailLimpio. Por favor revisa tu bandeja de entrada o spam para activar tu cuenta antes de iniciar sesión.'
+                    : 'Tu cuenta ha sido creada exitosamente. ¡Bienvenido a TDS Sport!',
+                style: TdsText.body(14, color: TdsColors.onSurfaceVariant),
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: TdsColors.acento,
+                foregroundColor: TdsColors.sobreAcento,
+              ),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                if (resultado == ResultadoRegistro.confirmarCorreo && mounted) {
+                  context.go(Rutas.login);
+                }
+              },
+              child: Text(
+                resultado == ResultadoRegistro.confirmarCorreo ? 'Ir a Iniciar Sesión' : 'Continuar',
+                style: TdsText.label(14, color: TdsColors.sobreAcento),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (mounted && resultado == ResultadoRegistro.confirmarCorreo) {
         context.go(Rutas.login);
-      } else {
-        // Con sesión, el redirect del router lleva a Inicio
-        Notificacion.exito(context, '¡Bienvenido a TDS Sport!', titulo: 'Cuenta creada');
       }
     } catch (e) {
-      if (mounted) Notificacion.excepcion(context, e, titulo: 'No se pudo crear la cuenta');
+      if (!mounted) return;
+      final razon = Notificacion.mensajeDeExcepcion(e);
+
+      Notificacion.error(
+        context,
+        'No se pudo crear la cuenta: $razon',
+        titulo: 'Error al registrar',
+      );
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: TdsColors.superficieAlta,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: TdsColors.error.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.error_outline, color: TdsColors.error, size: 28),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Error al registrar',
+                  style: TdsText.headline(18),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: TdsColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: TdsColors.error.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  razon,
+                  style: TdsText.body(13, color: TdsColors.onSurface),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('Entendido', style: TdsText.label(14, color: TdsColors.acento)),
+            ),
+          ],
+        ),
+      );
     } finally {
       if (mounted) setState(() => _cargando = false);
     }

@@ -91,7 +91,7 @@ class _UnirseQuinielaSheetState extends ConsumerState<UnirseQuinielaSheet> {
             children: [
               Text('Unirse con código', style: TdsText.headline(22)),
               const SizedBox(height: 4),
-              Text('Escribe el código de 5 caracteres que te compartieron.',
+              Text('Escribe el código que te compartieron.',
                   style: TdsText.body(13, color: TdsColors.onSurfaceVariant)),
               const SizedBox(height: 20),
               TextFormField(
@@ -102,9 +102,9 @@ class _UnirseQuinielaSheetState extends ConsumerState<UnirseQuinielaSheet> {
                 autocorrect: false,
                 style: TdsText.stats(28, color: TdsColors.primaryContainer).copyWith(letterSpacing: 6),
                 inputFormatters: [_CodigoFormatter(_normalizar)],
-                decoration: const InputDecoration(hintText: 'AB3F7'),
+                decoration: const InputDecoration(hintText: '12345'),
                 validator: (v) =>
-                    (v?.length ?? 0) >= QuinielasRepository.largoCodigo ? null : 'El código tiene 5 caracteres',
+                    (v?.length ?? 0) >= QuinielasRepository.largoCodigo ? null : 'El código debe tener al menos 5 caracteres',
                 onFieldSubmitted: (_) => _unirse(),
               ),
               const SizedBox(height: 24),

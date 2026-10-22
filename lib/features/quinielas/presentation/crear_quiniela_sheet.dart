@@ -11,6 +11,7 @@ import '../../partidos/domain/partido.dart';
 import '../../partidos/providers/partidos_providers.dart';
 import '../../perfil/providers/perfil_providers.dart';
 import '../providers/quinielas_acciones.dart';
+import 'widgets/codigo_exito_dialog.dart';
 
 // TODO(decision): D2 — límites de participantes (también se validan en la RPC crear_quiniela).
 const limiteMinimo = 2;
@@ -54,16 +55,26 @@ class _CrearQuinielaSheetState extends ConsumerState<CrearQuinielaSheet> {
             limiteUsuarios: int.parse(_limiteController.text),
           );
       if (!mounted) return;
-      Notificacion.exito(
-        context,
-        'Comparte el código ${creada.codigo} para invitar a tus amigos.',
-        titulo: 'Quiniela creada',
-        accion: SnackBarAction(
-          label: 'COPIAR CÓDIGO',
-          onPressed: () => Clipboard.setData(ClipboardData(text: creada.codigo)),
+
+      final torneos = ref.read(torneosConPartidosProvider).valueOrNull ?? [];
+      final torneo = torneos.where((t) => t.id == _torneoId).firstOrNull;
+
+      setState(() => _guardando = false);
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) => CodigoExitoDialog(
+          codigo: creada.codigo,
+          nombreQuiniela: _nombreController.text.trim(),
+          limite: int.parse(_limiteController.text),
+          torneoNombre: torneo?.nombre,
+          onContinuar: () {
+            Navigator.of(dialogCtx).pop();
+            context.go(Rutas.quiniela(creada.id));
+          },
         ),
       );
-      context.go(Rutas.quiniela(creada.id)); // cierra la hoja y abre la quiniela
     } catch (e) {
       if (!mounted) return;
       setState(() => _guardando = false);
