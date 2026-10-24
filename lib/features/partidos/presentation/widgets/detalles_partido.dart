@@ -15,24 +15,50 @@ class DetallesPartido extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final datos = [
-      // "16" → "Jornada: 16"; "Cuartos de Final (Ida)" se muestra tal cual
-      if (partido.jornada != null)
-        int.tryParse(partido.jornada!) != null ? 'Jornada: ${partido.jornada}' : partido.jornada!,
-      if (partido.estadio != null) 'Estadio: ${partido.estadio}',
-    ];
-    if (datos.isEmpty) return const SizedBox.shrink();
+    final tieneJornada = partido.jornada != null && partido.jornada!.trim().isNotEmpty;
+    final tieneEstadio = partido.estadio != null && partido.estadio!.trim().isNotEmpty;
+    if (!tieneJornada && !tieneEstadio) return const SizedBox.shrink();
 
     return Wrap(
-      spacing: 12,
+      spacing: 8,
       runSpacing: 4,
       alignment: alineacion,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        for (final texto in datos)
-          Text(texto,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TdsText.label(11, color: TdsColors.textoSecundario)),
+        if (tieneJornada)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: TdsColors.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              partido.nombreJornada,
+              style: TdsText.label(11, color: TdsColors.textoSecundario),
+            ),
+          ),
+        if (tieneEstadio)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: TdsColors.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: TdsColors.borde.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.location_on, size: 12, color: TdsColors.primaryContainer),
+                const SizedBox(width: 4),
+                Text(
+                  'Estadio: ${partido.estadio!}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TdsText.label(11, color: TdsColors.onSurface),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }

@@ -40,8 +40,12 @@ class PartidosTabs extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _tab(TabPartidos.todos, 'TODOS (${conteo(TabPartidos.todos)})'),
-          _tab(TabPartidos.enVivo, 'EN VIVO (${conteo(TabPartidos.enVivo)})', puntoVivo: true),
+          _tab(TabPartidos.todos, 'TODOS'),
+          _tab(
+            TabPartidos.enVivo,
+            conteo(TabPartidos.enVivo) > 0 ? 'EN VIVO (${conteo(TabPartidos.enVivo)})' : 'EN VIVO',
+            puntoVivo: conteo(TabPartidos.enVivo) > 0,
+          ),
           _tab(TabPartidos.finalizados, 'FINALIZADOS'),
         ],
       ),
@@ -131,15 +135,118 @@ class LigasChips extends StatelessWidget {
   }
 }
 
-/// Título de la sección según el tab seleccionado.
-class SeccionEncabezado extends StatelessWidget {
-  const SeccionEncabezado({super.key, required this.tab, required this.total});
+/// Filtro temporal para ver los partidos de la jornada próxima o de hoy/semana.
+enum FiltroTemporal {
+  jornadaActual,
+  hoy,
+  semana;
+}
 
-  final TabPartidos tab;
-  final int total;
+/// Selector rápido de partidos de la jornada próxima, hoy o esta semana.
+class FiltrosTemporalesChips extends StatelessWidget {
+  const FiltrosTemporalesChips({
+    super.key,
+    required this.seleccionado,
+    required this.onChanged,
+  });
+
+  final FiltroTemporal seleccionado;
+  final ValueChanged<FiltroTemporal> onChanged;
 
   @override
   Widget build(BuildContext context) {
+    return TdsFilterChipsRow(
+      chips: [
+        TdsFilterChip(
+          texto: '⚡ Jornada Próxima',
+          activo: seleccionado == FiltroTemporal.jornadaActual,
+          onTap: () => onChanged(FiltroTemporal.jornadaActual),
+        ),
+        TdsFilterChip(
+          texto: 'Hoy',
+          activo: seleccionado == FiltroTemporal.hoy,
+          icono: Icons.today_outlined,
+          onTap: () => onChanged(FiltroTemporal.hoy),
+        ),
+        TdsFilterChip(
+          texto: 'Esta semana',
+          activo: seleccionado == FiltroTemporal.semana,
+          icono: Icons.date_range_outlined,
+          onTap: () => onChanged(FiltroTemporal.semana),
+        ),
+      ],
+    );
+  }
+}
+
+/// Carrusel horizontal para seleccionar jornada / fase cuando se filtra por liga.
+class JornadasChips extends StatelessWidget {
+  const JornadasChips({
+    super.key,
+    required this.jornadas,
+    required this.seleccionada,
+    required this.onChanged,
+  });
+
+  final List<String> jornadas;
+  final String? seleccionada;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TdsFilterChipsRow(
+      chips: [
+        TdsFilterChip(
+          texto: 'Todas las jornadas',
+          activo: seleccionada == null,
+          icono: Icons.grid_view_rounded,
+          onTap: () => onChanged(null),
+        ),
+        for (final j in jornadas)
+          TdsFilterChip(
+            texto: j,
+            activo: seleccionada == j,
+            onTap: () => onChanged(j),
+          ),
+      ],
+    );
+  }
+}
+
+/// Título de la sección según el tab y los filtros seleccionados.
+class SeccionEncabezado extends StatelessWidget {
+  const SeccionEncabezado({
+    super.key,
+    required this.tab,
+    required this.total,
+    this.busqueda,
+    this.subtitulo,
+  });
+
+  final TabPartidos tab;
+  final int total;
+  final String? busqueda;
+  final String? subtitulo;
+
+  @override
+  Widget build(BuildContext context) {
+    if (busqueda != null && busqueda!.trim().isNotEmpty) {
+      return Row(
+        children: [
+          const Icon(Icons.search, color: TdsColors.primaryContainer, size: 22),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Resultados para "${busqueda!.trim()}"',
+              overflow: TextOverflow.ellipsis,
+              style: TdsText.headline(18),
+            ),
+          ),
+          Text('$total ${total == 1 ? 'partido' : 'partidos'}', style: TdsText.label(12, color: TdsColors.onSurfaceVariant)),
+        ],
+      );
+    }
+
     if (tab == TabPartidos.enVivo) {
       return Row(
         children: [
@@ -160,16 +267,17 @@ class SeccionEncabezado extends StatelessWidget {
       );
     }
 
-    final (icono, titulo, subtitulo) = tab == TabPartidos.todos
-        ? (Icons.sports_soccer, 'Todos los Partidos', '$total partidos')
-        : (Icons.flag_outlined, 'Resultados', '$total jugados');
+    final (icono, tituloPredeterminado) = tab == TabPartidos.todos
+        ? (Icons.sports_soccer, 'Partidos')
+        : (Icons.flag_outlined, 'Resultados');
 
     return Row(
       children: [
         Icon(icono, color: TdsColors.primaryContainer, size: 22),
         const SizedBox(width: 8),
-        Expanded(child: Text(titulo, style: TdsText.headline(20))),
-        Text(subtitulo, style: TdsText.label(12, color: TdsColors.onSurfaceVariant)),
+        Expanded(child: Text(tituloPredeterminado, style: TdsText.headline(20))),
+        Text(subtitulo ?? '$total ${total == 1 ? 'partido' : 'partidos'}',
+            style: TdsText.label(12, color: TdsColors.onSurfaceVariant)),
       ],
     );
   }

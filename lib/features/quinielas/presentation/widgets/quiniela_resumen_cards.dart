@@ -19,8 +19,7 @@ import '../../providers/quinielas_providers.dart';
 import 'pronostico_card.dart';
 import 'resultado_quiniela_badge.dart';
 
-/// Card grande de Mis Quinielas (en curso, por iniciar y finalizadas): métricas, avance, participantes,
-/// partidos desplegables y copiar código. Tocando el nombre se abre la quiniela.
+/// Card grande y moderna de Mis Quinielas: métricas, avance, avatares y banner de pronóstico directo.
 class QuinielaDestacadaCard extends StatelessWidget {
   const QuinielaDestacadaCard({super.key, required this.quiniela, this.miId});
 
@@ -34,134 +33,255 @@ class QuinielaDestacadaCard extends StatelessWidget {
     final q = quiniela;
     final pctAvance = (q.avance * 100).round();
     final finalizada = !q.activa;
-    // Activa: partidos en juego o por jugar. Finalizada: todos, con sus resultados.
-    final partidos = finalizada ? q.partidos : q.porJugar;
+    final ahora = DateTime.now();
+    final pendientes = q.pendientesDePronosticar(ahora);
 
     return TdsCard(
-      glow: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => context.push(Rutas.quiniela(q.id, soloLectura: finalizada)),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+      glow: q.activa && pendientes > 0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.push(Rutas.quiniela(q.id, soloLectura: finalizada)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Fila Superior: Estado + Badges + Código interactivo + Chevron
+              Row(
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _Cabecera(quiniela: q, compacta: true),
+                        if (finalizada)
+                          ResultadoQuinielaBadge(
+                            resultado: q.resultado,
+                            lugar: q.lugar,
+                            total: q.participantes,
+                            empate: q.empateEnPrimero,
+                          ),
+                        if (q.esCreador(miId))
+                          TdsPill(
+                            color: TdsColors.secondaryContainer.withValues(alpha: 0.15),
+                            child: Text(
+                              'CREADA POR TI',
+                              style: TdsText.label(10, color: TdsColors.secondaryContainer),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Botón chip para copiar el código con 1 toque
+                  InkWell(
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: () => copiarCodigo(context, q.codigoAcceso),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: TdsColors.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: TdsColors.borde.withValues(alpha: 0.5)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          _Cabecera(quiniela: q),
-                          if (finalizada)
-                            ResultadoQuinielaBadge(
-                              resultado: q.resultado,
-                              lugar: q.lugar,
-                              total: q.participantes,
-                              empate: q.empateEnPrimero,
-                            ),
-                          if (q.esCreador(miId))
-                            TdsPill(
-                              child: Text(
-                                'CREADA POR TI',
-                                style: TdsText.label(10, color: TdsColors.secondaryContainer),
-                              ),
-                            ),
+                          const Icon(Icons.copy_rounded, size: 12, color: TdsColors.textoSecundario),
+                          const SizedBox(width: 5),
+                          Text('#${q.codigoAcceso}', style: TdsText.label(11, color: TdsColors.texto)),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Text(q.nombre, style: TdsText.headline(26).copyWith(height: 1.15)),
-                      Text(q.torneoNombre, style: TdsText.body(13, color: TdsColors.onSurfaceVariant)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: TdsColors.textoSecundario),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Nombre de la Quiniela y Torneo
+              Text(q.nombre, style: TdsText.headline(22).copyWith(height: 1.15)),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.emoji_events_outlined, size: 14, color: TdsColors.textoSecundario),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      q.torneoNombre,
+                      style: TdsText.body(13, color: TdsColors.textoSecundario),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Panel de Métricas: Posición, Puntos, Aciertos
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: TdsColors.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                ),
+                child: Row(
+                  children: [
+                    _Metrica(
+                      titulo: 'TU POSICIÓN',
+                      valor: '#${q.lugar}',
+                      sufijo: '/ ${q.participantes}',
+                      color: q.lugar == 1 ? TdsColors.acento : TdsColors.secondaryContainer,
+                      resaltada: q.lugar <= 3,
+                    ),
+                    _Metrica(
+                      titulo: 'PUNTOS',
+                      valor: '${q.puntos}',
+                      sufijo: 'pts',
+                      color: TdsColors.texto,
+                    ),
+                    _Metrica(
+                      titulo: 'ACIERTOS',
+                      valor: '${q.aciertos}',
+                      sufijo: '/ ${q.finalizados.length} jug.',
+                      color: TdsColors.texto,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Avance de la Quiniela
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Progreso del torneo', style: TdsText.label(11, color: TdsColors.textoSecundario)),
+                  ),
+                  Text(
+                    '$pctAvance% (${q.finalizados.length} de ${q.totalPartidos} jugados)',
+                    style: TdsText.label(11, color: TdsColors.textoSecundario),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: q.avance,
+                  minHeight: 6,
+                  backgroundColor: TdsColors.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation(
+                    q.avance >= 1.0 ? TdsColors.exito : TdsColors.acento,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Participantes en formato compacto con avatares apilados
+              _AvataresParticipantes(quiniela: q, miId: miId),
+              const SizedBox(height: 14),
+
+              // Callout de Acción Inteligente
+              if (!finalizada && pendientes > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: TdsColors.advertencia.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: TdsColors.advertencia.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: TdsColors.advertencia.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.bolt_rounded, size: 16, color: TdsColors.advertencia),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$pendientes ${pendientes == 1 ? 'partido pendiente' : 'partidos pendientes'}',
+                              style: TdsText.label(13, color: TdsColors.texto),
+                            ),
+                            Text(
+                              q.proximoPartido != null
+                                  ? 'Cierra ${Formatos.cuentaRegresiva(q.proximoPartido!.fecha) ?? Formatos.diaHora(q.proximoPartido!.fecha)}'
+                                  : 'Asigna tus marcadores',
+                              style: TdsText.body(11, color: TdsColors.textoSecundario),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TdsPillButton(
+                        icon: Icons.edit_note_rounded,
+                        label: 'Pronosticar',
+                        primary: true,
+                        onTap: () => context.push(Rutas.quiniela(q.id)),
+                      ),
+                    ],
+                  ),
+                )
+              else if (!finalizada)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: TdsColors.exito.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: TdsColors.exito.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded, size: 18, color: TdsColors.exito),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Todos tus pronósticos listos (${q.futurosListos} asignados)',
+                          style: TdsText.label(12, color: TdsColors.exito),
+                        ),
+                      ),
+                      Text(
+                        'Ver quiniela ➔',
+                        style: TdsText.label(12, color: TdsColors.acento),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: TdsColors.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      ResultadoQuinielaBadge(
+                        resultado: q.resultado,
+                        lugar: q.lugar,
+                        total: q.participantes,
+                        empate: q.empateEnPrimero,
+                      ),
+                      const Spacer(),
+                      Text(
+                        'Ver resultados finales ➔',
+                        style: TdsText.label(12, color: TdsColors.textoSecundario),
+                      ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: TdsColors.onSurfaceVariant),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: TdsColors.surfaceContainerHigh, borderRadius: BorderRadius.circular(20)),
-            child: Row(
-              children: [
-                _Metrica(titulo: 'ACIERTOS', valor: '${q.aciertos}', sufijo: '/ ${q.finalizados.length} jug.'),
-                _Metrica(
-                  titulo: 'TU POSICIÓN',
-                  valor: '#${q.lugar}',
-                  sufijo: '/ ${q.participantes}',
-                  color: TdsColors.secondaryContainer,
-                  resaltada: true,
-                ),
-                _Metrica(titulo: 'PUNTOS', valor: '${q.puntos}', sufijo: 'pts', color: TdsColors.onSurface),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Text('Avance de la Quiniela', style: TdsText.label(12, color: TdsColors.onSurfaceVariant)),
-              ),
-              Text(
-                '$pctAvance% (${q.finalizados.length} de ${q.totalPartidos} partidos)',
-                style: TdsText.label(12, color: TdsColors.primaryContainer),
-              ),
             ],
           ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: q.avance,
-              minHeight: 8,
-              backgroundColor: TdsColors.surfaceContainerHighest,
-              semanticsLabel: 'Avance de la quiniela',
-            ),
-          ),
-          const SizedBox(height: 20),
-          _ParticipantesDe(quiniela: q, miId: miId),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              const Icon(Icons.checklist, color: TdsColors.primaryContainer, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  finalizada
-                      ? 'PRONÓSTICOS Y RESULTADOS (${partidos.length})'
-                      : 'PARTIDOS EN JUEGO Y POR JUGAR (${partidos.length})',
-                  style: TdsText.label(12, letterSpacing: 0.8),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (partidos.isEmpty)
-            Text(
-              finalizada ? 'Este torneo aún no tiene partidos.' : 'No quedan partidos en juego ni por jugar.',
-              style: TdsText.body(13, color: TdsColors.onSurfaceVariant),
-            )
-          else
-            _PartidosConBuscador(quiniela: q, partidos: partidos),
-          // Una quiniela finalizada ya no recibe invitados
-          if (!finalizada) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: TdsPillButton(
-                icon: Icons.share_outlined,
-                label: 'Copiar código',
-                onTap: () => copiarCodigo(context, q.codigoAcceso),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -762,6 +882,93 @@ class QuinielaPanelCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Participantes en formato compacto con avatares circulares superpuestos (Sleek Stack).
+class _AvataresParticipantes extends ConsumerWidget {
+  const _AvataresParticipantes({required this.quiniela, this.miId});
+
+  final ResumenQuiniela quiniela;
+  final String? miId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref.watch(posicionesProvider(quiniela.id)).when(
+          skipLoadingOnRefresh: true,
+          loading: () => const SizedBox(height: 28),
+          error: (_, _) => Text(
+            '${quiniela.participantes} jugadores',
+            style: TdsText.body(12, color: TdsColors.textoSecundario),
+          ),
+          data: (posiciones) {
+            if (posiciones.isEmpty) return const SizedBox.shrink();
+            final visibles = posiciones.take(4).toList();
+            final yo = posiciones.where((p) => p.usuarioId == miId).firstOrNull;
+            final voyGanando = yo != null && yo.lugar == 1;
+
+            return Row(
+              children: [
+                SizedBox(
+                  height: 28,
+                  width: 28.0 + (visibles.length - 1) * 18.0,
+                  child: Stack(
+                    children: [
+                      for (var i = 0; i < visibles.length; i++)
+                        Positioned(
+                          left: i * 18.0,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: visibles[i].usuarioId == miId
+                                  ? TdsColors.acento
+                                  : TdsColors.superficieAlta,
+                              border: Border.all(color: TdsColors.superficie, width: 2),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              visibles[i].nombre.isEmpty ? '?' : visibles[i].nombre[0].toUpperCase(),
+                              style: TdsText.label(
+                                11,
+                                color: visibles[i].usuarioId == miId ? TdsColors.sobreAcento : TdsColors.texto,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${posiciones.length} / ${quiniela.limiteUsuarios} jugadores',
+                    style: TdsText.body(12, color: TdsColors.textoSecundario),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (voyGanando)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: TdsColors.acento.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: TdsColors.acento.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('👑', style: TextStyle(fontSize: 10)),
+                        const SizedBox(width: 4),
+                        Text('Lideras la tabla', style: TdsText.label(10, color: TdsColors.acento)),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
   }
 }
 

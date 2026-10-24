@@ -143,12 +143,22 @@ class Partido extends Equatable {
     if (q.isEmpty) return true;
     final l = sinAcentos(local.nombre);
     final v = sinAcentos(visitante.nombre);
+    final t = sinAcentos(torneo);
+    final e = sinAcentos(estadio ?? '');
     final partes = q.split(RegExp(r'\s+vs\.?\s*|\s*vs\.?\s+')).map((s) => s.trim()).toList();
     if (partes.length == 2) {
       final (a, b) = (partes[0], partes[1]);
       return (l.contains(a) && v.contains(b)) || (l.contains(b) && v.contains(a));
     }
-    return l.contains(q) || v.contains(q);
+    return l.contains(q) || v.contains(q) || t.contains(q) || e.contains(q);
+  }
+
+  /// Formato legible de la jornada o fase (ej. "16" -> "Jornada 16", "Cuartos" -> "Cuartos").
+  String get nombreJornada {
+    if (jornada == null || jornada!.trim().isEmpty) return 'General';
+    final num = int.tryParse(jornada!.trim());
+    if (num != null) return 'Jornada $num';
+    return jornada!.trim();
   }
 
   @override

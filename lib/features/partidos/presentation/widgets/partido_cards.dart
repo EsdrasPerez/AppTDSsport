@@ -39,7 +39,12 @@ class MarcadorCard extends StatelessWidget {
               Expanded(
                 flex: 3,
                 child: EquipoEscudo(
-                    nombre: partido.local.nombre, escudoUrl: partido.local.escudoUrl, size: 56, tamanoNombre: 16),
+                  nombre: partido.local.nombre,
+                  escudoUrl: partido.local.escudoUrl,
+                  size: 56,
+                  tamanoNombre: 16,
+                  subtitulo: 'Local',
+                ),
               ),
               Expanded(
                 flex: 2,
@@ -57,10 +62,12 @@ class MarcadorCard extends StatelessWidget {
               Expanded(
                 flex: 3,
                 child: EquipoEscudo(
-                    nombre: partido.visitante.nombre,
-                    escudoUrl: partido.visitante.escudoUrl,
-                    size: 56,
-                    tamanoNombre: 16),
+                  nombre: partido.visitante.nombre,
+                  escudoUrl: partido.visitante.escudoUrl,
+                  size: 56,
+                  tamanoNombre: 16,
+                  subtitulo: 'Visitante',
+                ),
               ),
             ],
           ),
