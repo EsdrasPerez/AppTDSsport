@@ -51,5 +51,10 @@ class AuthRepository {
     await _db.auth.resetPasswordForEmail(email.trim());
   }
 
+  /// Actualiza la contraseña del usuario actualmente autenticado.
+  Future<void> cambiarContrasena(String nuevaContrasena) async {
+    await _db.auth.updateUser(UserAttributes(password: nuevaContrasena));
+  }
+
   Future<void> cerrarSesion() => _db.auth.signOut();
 }

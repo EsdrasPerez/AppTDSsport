@@ -68,6 +68,24 @@ class QuinielasAcciones {
       _ref.invalidate(pronosticosDePartidoProvider((quinielaId: quinielaId, partidoId: partidoId)));
     }
   }
+
+  /// Elimina una quiniela por completo (solo creador).
+  Future<void> eliminar(String quinielaId) async {
+    await _ref.read(quinielasRepositoryProvider).eliminarQuiniela(quinielaId);
+    _ref
+      ..invalidate(misQuinielasProvider)
+      ..invalidate(quinielaDetalleProvider(quinielaId))
+      ..invalidate(limiteQuinielasProvider);
+  }
+
+  /// Abandona la quiniela (solo participante invitado).
+  Future<void> salir(String quinielaId) async {
+    await _ref.read(quinielasRepositoryProvider).salirDeQuiniela(quinielaId);
+    _ref
+      ..invalidate(misQuinielasProvider)
+      ..invalidate(quinielaDetalleProvider(quinielaId))
+      ..invalidate(limiteQuinielasProvider);
+  }
 }
 
 final quinielasAccionesProvider = Provider(QuinielasAcciones.new);

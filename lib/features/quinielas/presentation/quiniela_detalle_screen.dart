@@ -123,6 +123,76 @@ class _QuinielaDetalleScreenState extends ConsumerState<QuinielaDetalleScreen> w
     Notificacion.exito(context, 'Pega el mensaje en tu chat para invitar a tus amigos.', titulo: 'Invitación copiada');
   }
 
+  Future<void> _confirmarEliminar(QuinielaDetalle q, int miembros) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('¿Eliminar "${q.nombre}"?'),
+        content: Text(
+          'Esta acción es permanente e irreversible. Se eliminará la quiniela, '
+          'la tabla de posiciones y los pronósticos de todos los participantes ($miembros miembros).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: TdsColors.error),
+            child: const Text('Sí, eliminar definitivamente'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmado != true || !mounted) return;
+
+    try {
+      await ref.read(quinielasAccionesProvider).eliminar(widget.quinielaId);
+      if (!mounted) return;
+      Notificacion.info(context, 'La quiniela "${q.nombre}" fue eliminada.');
+      context.go(Rutas.quinielas);
+    } catch (e) {
+      if (mounted) Notificacion.excepcion(context, e, titulo: 'No se pudo eliminar');
+    }
+  }
+
+  Future<void> _confirmarSalir(QuinielaDetalle q) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('¿Salirte de "${q.nombre}"?'),
+        content: const Text(
+          'Dejarás de competir en esta quiniela y se borrarán tus puntos y pronósticos en ella. '
+          'Podrás volver a unirte más adelante si el creador te comparte el código de acceso.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Seguir en la quiniela'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: TdsColors.error),
+            child: const Text('Sí, salirme'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmado != true || !mounted) return;
+
+    try {
+      await ref.read(quinielasAccionesProvider).salir(widget.quinielaId);
+      if (!mounted) return;
+      Notificacion.info(context, 'Has salido de la quiniela "${q.nombre}".');
+      context.go(Rutas.quinielas);
+    } catch (e) {
+      if (mounted) Notificacion.excepcion(context, e, titulo: 'No se pudo salir');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final detalle = ref.watch(quinielaDetalleProvider(widget.quinielaId));
@@ -152,6 +222,44 @@ class _QuinielaDetalleScreenState extends ConsumerState<QuinielaDetalleScreen> w
               icon: const Icon(Icons.person_add_alt_1_outlined),
               tooltip: 'Compartir invitación',
               onPressed: () => _compartirInvitacion(d.quiniela),
+            ),
+          if (d != null && d.soyMiembro && !widget.soloLectura)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded),
+              tooltip: 'Opciones de la quiniela',
+              color: TdsColors.surfaceContainerHigh,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              onSelected: (opcion) {
+                if (opcion == 'eliminar') {
+                  _confirmarEliminar(d.quiniela, d.posiciones.length);
+                } else if (opcion == 'salir') {
+                  _confirmarSalir(d.quiniela);
+                }
+              },
+              itemBuilder: (context) => [
+                if (d.soyCreador)
+                  PopupMenuItem(
+                    value: 'eliminar',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.delete_outline_rounded, color: TdsColors.error, size: 20),
+                        const SizedBox(width: 10),
+                        Text('Eliminar quiniela', style: TdsText.label(13, color: TdsColors.error)),
+                      ],
+                    ),
+                  )
+                else
+                  PopupMenuItem(
+                    value: 'salir',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.logout_rounded, color: TdsColors.advertencia, size: 20),
+                        const SizedBox(width: 10),
+                        Text('Salirme de la quiniela', style: TdsText.label(13, color: TdsColors.advertencia)),
+                      ],
+                    ),
+                  ),
+              ],
             ),
         ],
       ),

@@ -20,7 +20,7 @@ import 'pronostico_card.dart';
 import 'resultado_quiniela_badge.dart';
 
 /// Card grande y moderna de Mis Quinielas: métricas, avance, avatares y banner de pronóstico directo.
-class QuinielaDestacadaCard extends StatelessWidget {
+class QuinielaDestacadaCard extends ConsumerWidget {
   const QuinielaDestacadaCard({super.key, required this.quiniela, this.miId});
 
   final ResumenQuiniela quiniela;
@@ -29,12 +29,13 @@ class QuinielaDestacadaCard extends StatelessWidget {
   final String? miId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final q = quiniela;
     final pctAvance = (q.avance * 100).round();
     final finalizada = !q.activa;
     final ahora = DateTime.now();
     final pendientes = q.pendientesDePronosticar(ahora);
+    final esCreador = q.esCreador(miId);
 
     return TdsCard(
       glow: q.activa && pendientes > 0,
@@ -46,7 +47,7 @@ class QuinielaDestacadaCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Fila Superior: Estado + Badges + Código interactivo + Chevron
+              // Fila Superior: Estado + Badges + Código interactivo + Opciones
               Row(
                 children: [
                   Expanded(
@@ -96,8 +97,98 @@ class QuinielaDestacadaCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: TdsColors.textoSecundario),
+                  const SizedBox(width: 4),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert_rounded, size: 20, color: TdsColors.textoSecundario),
+                    tooltip: 'Opciones de la quiniela',
+                    color: TdsColors.surfaceContainerHigh,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    onSelected: (opcion) async {
+                      if (opcion == 'eliminar') {
+                        final confirmado = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('¿Eliminar "${q.nombre}"?'),
+                            content: Text(
+                              'Esta acción es permanente e irreversible. Se eliminará la quiniela y los pronósticos de todos los participantes (${q.participantes} miembros).',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancelar'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: TextButton.styleFrom(foregroundColor: TdsColors.error),
+                                child: const Text('Sí, eliminar definitivamente'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmado == true && context.mounted) {
+                          try {
+                            await ref.read(quinielasAccionesProvider).eliminar(q.id);
+                            if (context.mounted) Notificacion.info(context, 'La quiniela "${q.nombre}" fue eliminada.');
+                          } catch (e) {
+                            if (context.mounted) Notificacion.excepcion(context, e, titulo: 'No se pudo eliminar');
+                          }
+                        }
+                      } else if (opcion == 'salir') {
+                        final confirmado = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('¿Salirte de "${q.nombre}"?'),
+                            content: const Text(
+                              'Dejarás de competir en esta quiniela y se borrarán tus puntos y pronósticos en ella.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Seguir en la quiniela'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: TextButton.styleFrom(foregroundColor: TdsColors.error),
+                                child: const Text('Sí, salirme'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmado == true && context.mounted) {
+                          try {
+                            await ref.read(quinielasAccionesProvider).salir(q.id);
+                            if (context.mounted) Notificacion.info(context, 'Has salido de la quiniela "${q.nombre}".');
+                          } catch (e) {
+                            if (context.mounted) Notificacion.excepcion(context, e, titulo: 'No se pudo salir');
+                          }
+                        }
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      if (esCreador)
+                        PopupMenuItem(
+                          value: 'eliminar',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.delete_outline_rounded, color: TdsColors.error, size: 18),
+                              const SizedBox(width: 8),
+                              Text('Eliminar quiniela', style: TdsText.label(13, color: TdsColors.error)),
+                            ],
+                          ),
+                        )
+                      else
+                        PopupMenuItem(
+                          value: 'salir',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.logout_rounded, color: TdsColors.advertencia, size: 18),
+                              const SizedBox(width: 8),
+                              Text('Salirme de la quiniela', style: TdsText.label(13, color: TdsColors.advertencia)),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -224,7 +315,7 @@ class QuinielaDestacadaCard extends StatelessWidget {
                       ),
                       TdsPillButton(
                         icon: Icons.edit_note_rounded,
-                        label: 'Pronosticar',
+                        label: 'Asignar marcadores',
                         primary: true,
                         onTap: () => context.push(Rutas.quiniela(q.id)),
                       ),
@@ -515,10 +606,10 @@ class PronosticoFila extends StatelessWidget {
     final p = partido;
     final pr = pronostico;
     final marcador = '${golesTexto(p.golesLocal)} - ${golesTexto(p.golesVisitante)}';
-    final partidoTexto = switch (p.estado) {
-      EstadoPartido.finalizado || EstadoPartido.enVivo => '${p.local.nombre} $marcador ${p.visitante.nombre}',
-      _ => '${p.local.nombre} vs ${p.visitante.nombre}',
-    };
+    final enVivo = p.estaEnJuego;
+    final partidoTexto = enVivo || p.estado == EstadoPartido.finalizado
+        ? '${p.local.nombre} $marcador ${p.visitante.nombre}'
+        : '${p.local.nombre} vs ${p.visitante.nombre}';
 
     // ¿El signo de mi pronóstico coincide con el marcador actual? (solo para la etiqueta "PARCIAL")
     final acertando =
@@ -528,6 +619,18 @@ class PronosticoFila extends StatelessWidget {
     final fallado = p.estado == EstadoPartido.finalizado && (pr == null || pr.puntos == 0);
 
     final Widget badge = switch (p.estado) {
+      _ when enVivo && pr == null => const _Badge(texto: 'SIN PRONÓSTICO'),
+      _ when enVivo => _Badge(
+        icono: acertando ? Icons.sync : Icons.warning_amber_rounded,
+        texto: acertando ? 'PARCIAL' : 'EN RIESGO',
+        color: acertando ? TdsColors.primaryContainer : TdsColors.error,
+      ),
+      EstadoPartido.enVivo when pr == null => const _Badge(texto: 'SIN PRONÓSTICO'),
+      EstadoPartido.enVivo => _Badge(
+        icono: acertando ? Icons.sync : Icons.warning_amber_rounded,
+        texto: acertando ? 'PARCIAL' : 'EN RIESGO',
+        color: acertando ? TdsColors.primaryContainer : TdsColors.error,
+      ),
       EstadoPartido.finalizado when pr != null && pr.puntos > 0 => _Badge(
         icono: Icons.check_circle,
         texto: '+${pr.puntos} pts',
@@ -535,12 +638,6 @@ class PronosticoFila extends StatelessWidget {
         color: TdsColors.texto,
       ),
       EstadoPartido.finalizado => const _Badge(icono: Icons.cancel, texto: '0 pts'),
-      EstadoPartido.enVivo when pr == null => const _Badge(texto: 'SIN PRONÓSTICO'),
-      EstadoPartido.enVivo => _Badge(
-        icono: acertando ? Icons.sync : Icons.warning_amber_rounded,
-        texto: acertando ? 'PARCIAL' : 'EN RIESGO',
-        color: acertando ? TdsColors.primaryContainer : TdsColors.error,
-      ),
       EstadoPartido.suspendido => const _Badge(texto: 'SUSPENDIDO'),
       EstadoPartido.futuro => const _Badge(texto: 'PENDIENTE'),
     };
@@ -778,7 +875,7 @@ class _PronosticoChip extends StatelessWidget {
 
     final s = signo(pr.golesLocal, pr.golesVisitante);
     final texto = '${pr.golesLocal}-${pr.golesVisitante} · $s (${nombreSigno(s)})';
-    final enVivo = partido.estado == EstadoPartido.enVivo;
+    final enVivo = partido.estaEnJuego;
     final finalizado = partido.estado == EstadoPartido.finalizado;
 
     final (fondo, color) = fallado
@@ -972,31 +1069,6 @@ class _AvataresParticipantes extends ConsumerWidget {
   }
 }
 
-/// Participantes de una quiniela de la lista (misma consulta que la tabla de posiciones del detalle).
-class _ParticipantesDe extends ConsumerWidget {
-  const _ParticipantesDe({required this.quiniela, this.miId});
-
-  final ResumenQuiniela quiniela;
-  final String? miId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final aviso = TdsText.body(12, color: TdsColors.onSurfaceVariant);
-    return ref
-        .watch(posicionesProvider(quiniela.id))
-        .when(
-          skipLoadingOnRefresh: true,
-          loading: () => Text('Cargando participantes…', style: aviso),
-          error: (_, _) => Text('No se pudieron cargar los participantes.', style: aviso),
-          data: (lista) => ParticipantesQuiniela(
-            posiciones: lista,
-            creadorId: quiniela.creadorId,
-            limiteUsuarios: quiniela.limiteUsuarios,
-            miId: miId,
-          ),
-        );
-  }
-}
 
 /// Quiénes están unidos a la quiniela (detalle), en orden de posición.
 /// Se marca al creador con una corona y a mí con "(tú)".

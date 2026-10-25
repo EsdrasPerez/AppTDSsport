@@ -172,7 +172,7 @@ class _RivalesProState extends ConsumerState<_RivalesPro> {
       ..sort((a, b) => (a.fecha ?? ahora).compareTo(b.fecha ?? ahora));
     final abiertos = proximos.where((p) => p.aceptaPronosticoEn(ahora));
     return abiertos.firstOrNull ??
-        partidos.where((p) => p.estado == EstadoPartido.enVivo).firstOrNull ??
+        partidos.where((p) => p.estaEnJuego).firstOrNull ??
         proximos.firstOrNull ??
         (partidos.where((p) => p.estado == EstadoPartido.finalizado).toList()
               ..sort((a, b) => (b.fecha ?? ahora).compareTo(a.fecha ?? ahora)))
@@ -260,9 +260,9 @@ class _SelectorPartido extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ahora = DateTime.now();
-    final proximos = partidos.where((p) => p.estado == EstadoPartido.futuro).toList()
+    final proximos = partidos.where((p) => !p.estaEnJuego && p.estado == EstadoPartido.futuro).toList()
       ..sort((a, b) => (a.fecha ?? ahora).compareTo(b.fecha ?? ahora));
-    final enVivo = partidos.where((p) => p.estado == EstadoPartido.enVivo).toList();
+    final enVivo = partidos.where((p) => p.estaEnJuego).toList();
     final finalizados = partidos.where((p) => p.estado == EstadoPartido.finalizado).toList()
       ..sort((a, b) => (b.fecha ?? ahora).compareTo(a.fecha ?? ahora));
 
@@ -327,11 +327,10 @@ class _DetallePartido extends ConsumerWidget {
               // Ajustar mi pronóstico después de ver a los rivales (mientras el partido lo acepte)
               if (partido.aceptaPronostico) ...[
                 const SizedBox(height: 16),
-                Text('TU PRONÓSTICO', style: TdsText.label(12, color: TdsColors.textoSecundario, letterSpacing: 1)),
-                const SizedBox(height: 8),
                 PronosticoCard(
                   key: ValueKey('${quiniela.id}-${partido.id}'),
                   partido: partido,
+                  compacto: true,
                   pronostico: miId == null ? null : mapa[miId],
                   onGuardar: (p, l, v) => ref.read(quinielasAccionesProvider).guardarPronostico(
                       quinielaId: quiniela.id, partidoId: p.id, golesLocal: l, golesVisitante: v),

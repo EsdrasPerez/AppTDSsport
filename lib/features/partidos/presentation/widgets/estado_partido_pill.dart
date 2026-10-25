@@ -9,14 +9,17 @@ import '../../domain/partido.dart';
 /// Etiqueta única del estado de un partido (antes se repetía en 3 widgets).
 /// Para FUTURO muestra la fecha si se pasa [fecha]; si no, "ABIERTO".
 class EstadoPartidoPill extends StatelessWidget {
-  const EstadoPartidoPill({super.key, required this.estado, this.fecha});
+  const EstadoPartidoPill({super.key, required this.estado, this.fecha, this.partido});
 
   final EstadoPartido estado;
   final DateTime? fecha;
+  final Partido? partido;
 
   @override
   Widget build(BuildContext context) {
+    final enJuego = partido?.estaEnJuego ?? (estado == EstadoPartido.enVivo);
     final (texto, color, punto) = switch (estado) {
+      _ when enJuego => ('EN VIVO', TdsColors.primaryContainer, true),
       EstadoPartido.futuro => (fecha == null ? 'ABIERTO' : Formatos.diaHora(fecha), TdsColors.primaryContainer, false),
       EstadoPartido.enVivo => ('EN VIVO', TdsColors.primaryContainer, true),
       EstadoPartido.finalizado => ('FINALIZADO', TdsColors.onSurfaceVariant, false),

@@ -16,7 +16,7 @@ class MarcadorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final enVivo = partido.estado == EstadoPartido.enVivo;
+    final enVivo = partido.estaEnJuego;
     final gl = partido.golesLocal;
     final gv = partido.golesVisitante;
 
@@ -31,7 +31,7 @@ class MarcadorCard extends StatelessWidget {
         children: [
           _Encabezado(
             texto: '${partido.torneo.toUpperCase()} • ${Formatos.dia(partido.fecha)}',
-            trailing: EstadoPartidoPill(estado: partido.estado),
+            trailing: EstadoPartidoPill(estado: partido.estado, partido: partido),
           ),
           const SizedBox(height: 20),
           Row(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -15,14 +17,21 @@ import '../../domain/quiniela_models.dart';
 /// Guarda el pronóstico; lanza excepción si falla.
 typedef GuardarPronostico = Future<void> Function(Partido partido, int golesLocal, int golesVisitante);
 
-/// Tab Pendientes: partido con dos campos de goles para ingresar el pronóstico.
-/// Regla de bloqueo: solo editable si el partido está en FUTURO y su hora de inicio no ha llegado.
+/// Tarjeta para ingresar pronóstico.
+/// Cuenta con auto-avance de campo, auto-guardado con debounce y modo compacto para no duplicar datos.
 class PronosticoCard extends StatefulWidget {
-  const PronosticoCard({super.key, required this.partido, required this.onGuardar, this.pronostico});
+  const PronosticoCard({
+    super.key,
+    required this.partido,
+    required this.onGuardar,
+    this.pronostico,
+    this.compacto = false,
+  });
 
   final Partido partido;
   final Pronostico? pronostico;
   final GuardarPronostico onGuardar;
+  final bool compacto;
 
   @override
   State<PronosticoCard> createState() => _PronosticoCardState();
@@ -31,6 +40,7 @@ class PronosticoCard extends StatefulWidget {
 class _PronosticoCardState extends State<PronosticoCard> {
   late final _localController = TextEditingController(text: widget.pronostico?.golesLocal.toString() ?? '');
   late final _visitanteController = TextEditingController(text: widget.pronostico?.golesVisitante.toString() ?? '');
+  Timer? _debounceTimer;
   bool _guardando = false;
 
   bool get _bloqueado => !widget.partido.aceptaPronostico;
@@ -40,12 +50,11 @@ class _PronosticoCardState extends State<PronosticoCard> {
       _localController.text != (widget.pronostico?.golesLocal.toString() ?? '') ||
       _visitanteController.text != (widget.pronostico?.golesVisitante.toString() ?? '');
 
-  bool get _completo => _localController.text.isNotEmpty && _visitanteController.text.isNotEmpty;
+  bool get _completo => _localController.text.trim().isNotEmpty && _visitanteController.text.trim().isNotEmpty;
 
   @override
   void didUpdateWidget(PronosticoCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Si el pronóstico guardado cambió en la base, reflejarlo (los modelos se comparan por valor)
     final p = widget.pronostico;
     if (p != null && p != oldWidget.pronostico) {
       _localController.text = p.golesLocal.toString();
@@ -55,23 +64,56 @@ class _PronosticoCardState extends State<PronosticoCard> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _localController.dispose();
     _visitanteController.dispose();
     super.dispose();
   }
 
-  Future<void> _guardar() async {
-    FocusScope.of(context).unfocus();
+  void _alCambiar() {
+    // Si completó local y visitante está vacío, saltar al visitante automáticamente
+    if (_localController.text.trim().isNotEmpty && _visitanteController.text.trim().isEmpty) {
+      FocusScope.of(context).nextFocus();
+    }
+    setState(() {});
+
+    _debounceTimer?.cancel();
+    if (_completo && _modificado && !_guardando) {
+      _debounceTimer = Timer(const Duration(milliseconds: 600), () {
+        if (mounted && _completo && _modificado && !_guardando) {
+          _guardar(silencioso: true);
+        }
+      });
+    }
+  }
+
+  Future<void> _guardar({bool silencioso = false}) async {
+    if (!widget.partido.aceptaPronostico) {
+      if (!silencioso) {
+        Notificacion.advertencia(context, 'El partido ya comenzó.', titulo: 'Pronósticos cerrados');
+      }
+      return;
+    }
+    final lStr = _localController.text.trim();
+    final vStr = _visitanteController.text.trim();
+    if (lStr.isEmpty || vStr.isEmpty) return;
+    final local = int.tryParse(lStr);
+    final visitante = int.tryParse(vStr);
+    if (local == null || visitante == null) return;
+
+    if (!silencioso) FocusScope.of(context).unfocus();
     setState(() => _guardando = true);
     try {
-      await widget.onGuardar(
-        widget.partido,
-        int.parse(_localController.text),
-        int.parse(_visitanteController.text),
-      );
-      if (mounted) Notificacion.exito(context, 'Tu pronóstico quedó guardado.', titulo: 'Pronóstico guardado');
+      await widget.onGuardar(widget.partido, local, visitante);
+      if (!mounted) return;
+      HapticFeedback.lightImpact();
+      if (!silencioso) {
+        Notificacion.exito(context, 'Tu pronóstico quedó guardado: $local - $visitante.', titulo: 'Pronóstico guardado');
+      }
     } catch (e) {
-      if (mounted) Notificacion.excepcion(context, e, titulo: 'No se pudo guardar');
+      if (mounted && !silencioso) {
+        Notificacion.excepcion(context, e, titulo: 'No se pudo guardar');
+      }
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
@@ -81,6 +123,108 @@ class _PronosticoCardState extends State<PronosticoCard> {
   Widget build(BuildContext context) {
     final partido = widget.partido;
     final puedeGuardar = !_bloqueado && !_guardando && _completo && _modificado;
+
+    if (widget.compacto) {
+      return TdsCard(
+        color: TdsColors.superficie,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _bloqueado ? Icons.lock_outline : Icons.sports_score,
+                  size: 16,
+                  color: _bloqueado ? TdsColors.textoSecundario : TdsColors.acento,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'TU MARCADOR',
+                  style: TdsText.label(
+                    12,
+                    color: _bloqueado ? TdsColors.textoSecundario : TdsColors.acento,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const Spacer(),
+                if (_guardando) ...[
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: TdsColors.acento),
+                  ),
+                  const SizedBox(width: 6),
+                  Text('Guardando…', style: TdsText.label(11, color: TdsColors.acento)),
+                ] else if (_bloqueado) ...[
+                  Text('Pronósticos cerrados', style: TdsText.label(11, color: TdsColors.textoTenue)),
+                ] else if (widget.pronostico != null && !_modificado) ...[
+                  const Icon(Icons.check_circle, size: 14, color: TdsColors.acento),
+                  const SizedBox(width: 4),
+                  Text('Guardado', style: TdsText.label(11, color: TdsColors.acento)),
+                ] else if (_localController.text.isNotEmpty != _visitanteController.text.isNotEmpty) ...[
+                  const Icon(Icons.info_outline, size: 13, color: TdsColors.advertencia),
+                  const SizedBox(width: 4),
+                  Text(
+                    _localController.text.isNotEmpty ? 'Falta visitante' : 'Falta local',
+                    style: TdsText.label(11, color: TdsColors.advertencia),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: EquipoEscudo(
+                    nombre: partido.local.nombre,
+                    escudoUrl: partido.local.escudoUrl,
+                    size: 28,
+                    disposicion: DisposicionEscudo.horizontal,
+                  ),
+                ),
+                GolesField(
+                  controller: _localController,
+                  enabled: !_bloqueado,
+                  etiqueta: 'Goles de ${partido.local.nombre}',
+                  onChanged: _alCambiar,
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(':', style: TdsText.stats(22, color: TdsColors.textoSecundario)),
+                ),
+                GolesField(
+                  controller: _visitanteController,
+                  enabled: !_bloqueado,
+                  etiqueta: 'Goles de ${partido.visitante.nombre}',
+                  onChanged: _alCambiar,
+                ),
+                Expanded(
+                  child: EquipoEscudo(
+                    nombre: partido.visitante.nombre,
+                    escudoUrl: partido.visitante.escudoUrl,
+                    size: 28,
+                    disposicion: DisposicionEscudo.horizontalInvertida,
+                  ),
+                ),
+              ],
+            ),
+            if (puedeGuardar) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TdsPillButton(
+                  icon: Icons.check,
+                  label: 'Guardar ahora',
+                  primary: true,
+                  cargando: _guardando,
+                  onTap: () => _guardar(silencioso: false),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
 
     return TdsCard(
       child: Column(
@@ -108,7 +252,7 @@ class _PronosticoCardState extends State<PronosticoCard> {
                 controller: _localController,
                 enabled: !_bloqueado,
                 etiqueta: 'Goles de ${partido.local.nombre}',
-                onChanged: () => setState(() {}),
+                onChanged: _alCambiar,
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -118,7 +262,7 @@ class _PronosticoCardState extends State<PronosticoCard> {
                 controller: _visitanteController,
                 enabled: !_bloqueado,
                 etiqueta: 'Goles de ${partido.visitante.nombre}',
-                onChanged: () => setState(() {}),
+                onChanged: _alCambiar,
               ),
               Expanded(
                 child: EquipoEscudo(nombre: partido.visitante.nombre, escudoUrl: partido.visitante.escudoUrl),
@@ -138,7 +282,7 @@ class _PronosticoCardState extends State<PronosticoCard> {
                 label: widget.pronostico == null ? 'Guardar pronóstico' : 'Actualizar pronóstico',
                 primary: true,
                 cargando: _guardando,
-                onTap: puedeGuardar ? _guardar : null,
+                onTap: puedeGuardar ? () => _guardar(silencioso: false) : null,
               ),
             ),
         ],

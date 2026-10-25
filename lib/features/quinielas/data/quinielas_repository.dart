@@ -188,6 +188,70 @@ class QuinielasRepository {
     return quinielaId;
   }
 
+  /// Elimina una quiniela por completo. Solo el creador puede hacerlo.
+  /// Borra pronósticos, usuarios vinculados y el registro de la quiniela.
+  Future<void> eliminarQuiniela(String quinielaId) async {
+    final userId = _usuarioId;
+
+    final q = await _db
+        .from('quinielas')
+        .select('id, creador_id, nombre')
+        .eq('id', quinielaId)
+        .maybeSingle();
+
+    if (q == null) {
+      throw const MensajeUsuario('La quiniela no existe o ya fue eliminada.');
+    }
+
+    if (q['creador_id']?.toString() != userId) {
+      throw const MensajeUsuario('Solo el creador de la quiniela puede eliminarla.');
+    }
+
+    // Borrado defensivo previo en caso de que la FK en la base de datos no tenga CASCADE
+    try {
+      await _db.from('pronosticos').delete().eq('quiniela_id', quinielaId);
+    } catch (_) {}
+    try {
+      await _db.from('quiniela_usuarios').delete().eq('quiniela_id', quinielaId);
+    } catch (_) {}
+
+    await _db.from('quinielas').delete().eq('id', quinielaId).eq('creador_id', userId);
+  }
+
+  /// El usuario actual abandona la quiniela. Solo para participantes invitados (no creador).
+  /// Borra sus pronósticos y su vinculación en quiniela_usuarios.
+  Future<void> salirDeQuiniela(String quinielaId) async {
+    final userId = _usuarioId;
+
+    final q = await _db
+        .from('quinielas')
+        .select('id, creador_id, nombre')
+        .eq('id', quinielaId)
+        .maybeSingle();
+
+    if (q != null && q['creador_id']?.toString() == userId) {
+      throw const MensajeUsuario(
+        'Eres el administrador de esta quiniela. Si deseas abandonarla, debes eliminarla.',
+      );
+    }
+
+    // Borrar pronósticos del usuario en esta quiniela
+    try {
+      await _db
+          .from('pronosticos')
+          .delete()
+          .eq('quiniela_id', quinielaId)
+          .eq('usuario_id', userId);
+    } catch (_) {}
+
+    // Borrar de quiniela_usuarios
+    await _db
+        .from('quiniela_usuarios')
+        .delete()
+        .eq('quiniela_id', quinielaId)
+        .eq('usuario_id', userId);
+  }
+
   static const alfabetoCodigo = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
   /// Los códigos nuevos son de 5, como los de create_quiniela. Al unirse se aceptan hasta 10

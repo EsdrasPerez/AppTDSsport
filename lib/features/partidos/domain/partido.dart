@@ -127,9 +127,23 @@ class Partido extends Equatable {
 
   bool get tieneMarcador => golesLocal != null && golesVisitante != null;
 
-  /// Se puede pronosticar: estado FUTURO y la hora de inicio todavía no llega.
+  /// ¿El partido se está jugando en este momento?
+  /// Se considera en juego si:
+  /// 1. Su estado en base de datos es `enVivo` (id 2).
+  /// 2. O si es un partido no finalizado/suspendido cuya hora de inicio ya llegó y
+  ///    se encuentra en la ventana habitual de juego (~135 minutos desde el inicio).
+  bool estaEnJuegoEn(DateTime ahora) {
+    if (estado == EstadoPartido.enVivo) return true;
+    if (estado == EstadoPartido.finalizado || estado == EstadoPartido.suspendido) return false;
+    if (fecha == null) return false;
+    return ahora.isAfter(fecha!) && ahora.isBefore(fecha!.add(const Duration(minutes: 135)));
+  }
+
+  bool get estaEnJuego => estaEnJuegoEn(DateTime.now());
+
+  /// Se puede pronosticar: estado FUTURO, no está en juego y la hora de inicio todavía no llega.
   bool aceptaPronosticoEn(DateTime ahora) =>
-      estado == EstadoPartido.futuro && (fecha == null || fecha!.isAfter(ahora));
+      estado == EstadoPartido.futuro && !estaEnJuegoEn(ahora) && (fecha == null || fecha!.isAfter(ahora));
 
   bool get aceptaPronostico => aceptaPronosticoEn(DateTime.now());
 

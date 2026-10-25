@@ -28,6 +28,7 @@ class CalendarioScreen extends ConsumerStatefulWidget {
 
 class _CalendarioScreenState extends ConsumerState<CalendarioScreen> {
   DateTime _dia = _soloFecha(DateTime.now());
+  bool _diaInicializado = false;
   bool _porMes = false; // false = partidos del día, true = todo el mes
   bool _soloAbiertos = false; // solo partidos que aceptan pronóstico
   String? _torneo; // null = todas las ligas
@@ -39,13 +40,19 @@ class _CalendarioScreenState extends ConsumerState<CalendarioScreen> {
     final mes = DateTime(_dia.year, _dia.month + delta);
     final hoy = _soloFecha(DateTime.now());
     setState(() {
-      _dia = (mes.year == hoy.year && mes.month == hoy.month) ? hoy : mes;
-      // Con una liga elegida, caer en uno de sus días de partido de ese mes
-      final torneo = _torneo;
-      if (torneo != null) {
-        final delMes = (ref.read(partidosProvider(null)).valueOrNull ?? const <Partido>[]).where((p) =>
-            p.torneo == torneo && p.fecha != null && p.fecha!.year == mes.year && p.fecha!.month == mes.month);
-        _dia = _diaConPartidos(delMes) ?? _dia;
+      _dia = (mes.year == hoy.year && mes.month == hoy.month) ? hoy : DateTime(mes.year, mes.month, 1);
+      final todos = ref.read(partidosProvider(null)).valueOrNull ?? const <Partido>[];
+      final delMes = todos.where((p) =>
+          p.fecha != null &&
+          p.fecha!.year == mes.year &&
+          p.fecha!.month == mes.month &&
+          (_torneo == null || p.torneo == _torneo)).toList();
+      if (delMes.isNotEmpty) {
+        final dias = delMes.map((p) => _soloFecha(p.fecha!)).toSet().toList()..sort();
+        if (!dias.contains(_dia)) {
+          final proximo = dias.where((d) => !d.isBefore(_dia)).firstOrNull ?? dias.first;
+          _dia = proximo;
+        }
       }
     });
   }
@@ -53,7 +60,8 @@ class _CalendarioScreenState extends ConsumerState<CalendarioScreen> {
   /// Si el día elegido no tiene partidos de [partidos], el próximo que sí (o el primero del mes).
   DateTime? _diaConPartidos(Iterable<Partido> partidos) {
     final dias = partidos.map((p) => _soloFecha(p.fecha!)).toSet().toList()..sort();
-    if (dias.isEmpty || dias.contains(_dia)) return null;
+    if (dias.isEmpty) return null;
+    if (dias.contains(_dia)) return _dia;
     return dias.where((d) => d.isAfter(_dia)).firstOrNull ?? dias.first;
   }
 
@@ -76,6 +84,23 @@ class _CalendarioScreenState extends ConsumerState<CalendarioScreen> {
   }
 
   Widget _buildContenido(List<Partido> todos) {
+    // Si aún no se inicializó el día, buscar el día más cercano a hoy que sí tenga partidos
+    if (!_diaInicializado && todos.isNotEmpty) {
+      final hoy = _soloFecha(DateTime.now());
+      final delMesActual = todos
+          .where((p) => p.fecha != null && p.fecha!.year == hoy.year && p.fecha!.month == hoy.month)
+          .toList();
+      if (delMesActual.isNotEmpty) {
+        final tieneHoy = delMesActual.any((p) => _soloFecha(p.fecha!) == hoy);
+        if (!tieneHoy) {
+          final dias = delMesActual.map((p) => _soloFecha(p.fecha!)).toSet().toList()..sort();
+          final proximo = dias.where((d) => !d.isBefore(hoy)).firstOrNull ?? dias.first;
+          _dia = proximo;
+        }
+      }
+      _diaInicializado = true;
+    }
+
     final delMes = todos
         .where((p) => p.fecha != null && p.fecha!.year == _dia.year && p.fecha!.month == _dia.month)
         .toList();
@@ -125,19 +150,43 @@ class _CalendarioScreenState extends ConsumerState<CalendarioScreen> {
                   children: [
                     _SelectorMes(
                       texto: '${_meses[_dia.month - 1]} ${_dia.year}',
+                      esHoy: _dia == _soloFecha(DateTime.now()),
+                      onHoy: () => setState(() => _dia = _soloFecha(DateTime.now())),
                       onAnterior: () => _cambiarMes(-1),
                       onSiguiente: () => _cambiarMes(1),
                     ),
                     const Spacer(),
-                    Text('Quiniela abierta', style: TdsText.label(11, color: TdsColors.textoSecundario)),
-                    const SizedBox(width: 4),
-                    Transform.scale(
-                      scale: 0.7,
-                      child: Switch(
-                        value: _soloAbiertos,
-                        activeThumbColor: TdsColors.sobreAcento,
-                        activeTrackColor: TdsColors.acento,
-                        onChanged: (v) => setState(() => _soloAbiertos = v),
+                    InkWell(
+                      onTap: () => setState(() => _soloAbiertos = !_soloAbiertos),
+                      borderRadius: BorderRadius.circular(20),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _soloAbiertos ? TdsColors.acento : TdsColors.superficieAlta,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: _soloAbiertos ? TdsColors.acento : TdsColors.borde.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.bolt,
+                              size: 14,
+                              color: _soloAbiertos ? TdsColors.sobreAcento : TdsColors.acento,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Quiniela abierta',
+                              style: TdsText.label(
+                                11,
+                                color: _soloAbiertos ? TdsColors.sobreAcento : TdsColors.textoSecundario,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -178,18 +227,52 @@ class _CalendarioScreenState extends ConsumerState<CalendarioScreen> {
             ),
           const SizedBox(height: 24),
           if (grupos.isEmpty)
-            VacioView(
-              icono: Icons.event_busy_outlined,
-              texto: _porMes ? 'No hay partidos este mes' : 'No hay partidos este día',
-              subtitulo: 'Prueba con otra fecha o quita los filtros.',
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                children: [
+                  VacioView(
+                    icono: Icons.event_busy_outlined,
+                    texto: _porMes ? 'No hay partidos este mes' : 'No hay partidos este día',
+                    subtitulo: _porMes
+                        ? 'Prueba cambiando de mes o limpiando los filtros.'
+                        : 'No hay encuentros programados para esta fecha.',
+                  ),
+                  if (!_porMes && delMes.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        final proximo = _diaConPartidos(delMes) ?? delMes.first.fecha;
+                        if (proximo != null) {
+                          setState(() => _dia = _soloFecha(proximo));
+                        }
+                      },
+                      icon: const Icon(Icons.bolt, size: 18),
+                      label: const Text(
+                        'VER DÍA CON PARTIDOS MÁS CERCANO',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: TdsColors.acento,
+                        foregroundColor: TdsColors.sobreAcento,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             )
-          else
+          else if (_porMes) ...[
+            ..._construirVistaMes(filtrados),
+          ] else ...[
             for (final grupo in grupos.values)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 child: SeccionTorneo(partidos: grupo, conPronostico: true),
               ),
-          if (otros.isNotEmpty)
+          ],
+          if (!_porMes && otros.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               child: _OtrosTorneos(grupos: otros),
@@ -198,6 +281,86 @@ class _CalendarioScreenState extends ConsumerState<CalendarioScreen> {
         ],
       ),
     );
+  }
+
+  List<Widget> _construirVistaMes(List<Partido> partidos) {
+    final partidosPorDia = <DateTime, List<Partido>>{};
+    for (final p in partidos) {
+      if (p.fecha == null) continue;
+      final dia = _soloFecha(p.fecha!);
+      partidosPorDia.putIfAbsent(dia, () => []).add(p);
+    }
+
+    final diasOrdenados = partidosPorDia.keys.toList()..sort();
+    final widgets = <Widget>[];
+
+    for (final dia in diasOrdenados) {
+      final partidosDelDia = partidosPorDia[dia]!;
+      final gruposTorneo = agruparPorTorneo(partidosDelDia..sort((a, b) => a.fecha!.compareTo(b.fecha!)));
+      final esHoy = dia == _soloFecha(DateTime.now());
+
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: esHoy ? TdsColors.acento : TdsColors.superficieAlta,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: esHoy ? TdsColors.acento : TdsColors.borde.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Text(
+                  '${_diasSemana[dia.weekday - 1].toUpperCase()} ${dia.day} DE ${_meses[dia.month - 1].toUpperCase()}',
+                  style: TdsText.label(
+                    11,
+                    color: esHoy ? TdsColors.sobreAcento : TdsColors.acento,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${partidosDelDia.length} ${partidosDelDia.length == 1 ? 'partido' : 'partidos'}',
+                style: TdsText.label(11, color: TdsColors.textoSecundario),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => setState(() {
+                  _dia = dia;
+                  _porMes = false;
+                }),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Ver día', style: TdsText.label(11, color: TdsColors.acento)),
+                    const Icon(Icons.chevron_right, size: 14, color: TdsColors.acento),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      for (final grupo in gruposTorneo.values) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+            child: SeccionTorneo(partidos: grupo, conPronostico: true),
+          ),
+        );
+      }
+    }
+
+    return widgets;
   }
 }
 
@@ -283,11 +446,19 @@ class _BotonModo extends StatelessWidget {
 
 /// "OCTUBRE 2026" con flechas para cambiar de mes.
 class _SelectorMes extends StatelessWidget {
-  const _SelectorMes({required this.texto, required this.onAnterior, required this.onSiguiente});
+  const _SelectorMes({
+    required this.texto,
+    required this.onAnterior,
+    required this.onSiguiente,
+    this.onHoy,
+    this.esHoy = false,
+  });
 
   final String texto;
   final VoidCallback onAnterior;
   final VoidCallback onSiguiente;
+  final VoidCallback? onHoy;
+  final bool esHoy;
 
   @override
   Widget build(BuildContext context) {
@@ -302,8 +473,31 @@ class _SelectorMes extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         flecha(Icons.chevron_left, 'Mes anterior', onAnterior),
-        Text(texto.toUpperCase(), style: TdsText.headline(14, weight: FontWeight.w600).copyWith(letterSpacing: 0.8)),
+        Text(texto.toUpperCase(), style: TdsText.headline(13, weight: FontWeight.w700).copyWith(letterSpacing: 0.8)),
         flecha(Icons.chevron_right, 'Mes siguiente', onSiguiente),
+        if (!esHoy && onHoy != null) ...[
+          const SizedBox(width: 4),
+          InkWell(
+            onTap: onHoy,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: TdsColors.acento.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: TdsColors.acento.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const TdsDot(color: TdsColors.acento, size: 4, pulse: true),
+                  const SizedBox(width: 4),
+                  Text('HOY', style: TdsText.label(10, color: TdsColors.acento, letterSpacing: 0.5)),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -352,10 +546,19 @@ class _TiraDiasState extends State<_TiraDias> {
   @override
   void didUpdateWidget(_TiraDias oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final cambio = widget.mes != oldWidget.mes || widget.soloConPartidos != oldWidget.soloConPartidos;
+    final cambio = widget.mes != oldWidget.mes ||
+        widget.seleccionado != oldWidget.seleccionado ||
+        widget.soloConPartidos != oldWidget.soloConPartidos;
     if (cambio && _scroll.hasClients) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scroll.hasClients) _scroll.jumpTo(_offset().clamp(0, _scroll.position.maxScrollExtent));
+        if (_scroll.hasClients) {
+          final target = _offset().clamp(0, _scroll.position.maxScrollExtent).toDouble();
+          _scroll.animateTo(
+            target,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+          );
+        }
       });
     }
   }
@@ -414,7 +617,6 @@ class _Dia extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Los días con partidos se marcan en lima (fondo tenue y borde) para distinguirlos de un vistazo
     final conPartidos = partidos > 0;
     final resaltado = activo || conPartidos ? TdsColors.acento : TdsColors.textoSecundario;
     return Semantics(
@@ -431,26 +633,48 @@ class _Dia extends StatelessWidget {
                 : conPartidos
                     ? TdsColors.acento.withValues(alpha: 0.12)
                     : TdsColors.superficie,
-            borderRadius: BorderRadius.circular(32),
-            border: conPartidos ? Border.all(color: TdsColors.acento.withValues(alpha: activo ? 1 : 0.6)) : null,
+            borderRadius: BorderRadius.circular(24),
+            border: conPartidos
+                ? Border.all(
+                    color: TdsColors.acento.withValues(alpha: activo ? 1 : 0.6),
+                    width: activo ? 1.5 : 1,
+                  )
+                : Border.all(color: Colors.transparent),
             boxShadow: activo ? [BoxShadow(color: TdsColors.acento.withValues(alpha: 0.18), blurRadius: 15)] : null,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (esHoy) ...[
-                TdsDot(color: TdsColors.acento, size: 6, pulse: activo),
+                TdsDot(color: TdsColors.acento, size: 5, pulse: activo),
                 const SizedBox(height: 2),
               ],
-              Text(_diasSemana[fecha.weekday - 1].toUpperCase(), style: TdsText.label(11, color: resaltado)),
+              Text(_diasSemana[fecha.weekday - 1].toUpperCase(), style: TdsText.label(10, color: resaltado)),
               const SizedBox(height: 2),
               Text('${fecha.day}',
                   style: TdsText.stats(activo ? 16 : 14, color: conPartidos ? TdsColors.acento : TdsColors.texto)),
               const SizedBox(height: 3),
-              Text(
-                partidos == 0 ? '—' : '$partidos part',
-                style: TdsText.label(9, color: activo || conPartidos ? TdsColors.acento : TdsColors.textoTenue),
-              ),
+              if (conPartidos)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: activo ? TdsColors.acento : TdsColors.acento.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$partidos',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: activo ? TdsColors.sobreAcento : TdsColors.acento,
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  '—',
+                  style: TdsText.label(9, color: TdsColors.textoTenue),
+                ),
             ],
           ),
         ),

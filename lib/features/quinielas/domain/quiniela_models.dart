@@ -172,12 +172,12 @@ class ResumenQuiniela extends Equatable {
   List<Partido> get _jugables => partidos.where((p) => p.estado != EstadoPartido.suspendido).toList();
   List<Partido> get finalizados => partidos.where((p) => p.estado == EstadoPartido.finalizado).toList();
   List<Partido> get futuros => partidos.where((p) => p.estado == EstadoPartido.futuro).toList();
-  int get enVivo => partidos.where((p) => p.estado == EstadoPartido.enVivo).length;
+  int get enVivo => partidos.where((p) => p.estaEnJuego).length;
 
   /// Partidos en juego primero y luego los que se jugarán (sin finalizados ni suspendidos).
   List<Partido> get porJugar => [
-        ...partidos.where((p) => p.estado == EstadoPartido.enVivo),
-        ...futuros,
+        ...partidos.where((p) => p.estaEnJuego),
+        ...futuros.where((p) => !p.estaEnJuego),
       ];
 
   EstadoQuiniela get estado => calcularEstadoQuiniela(torneoActivo: torneoActivo, partidos: partidos);

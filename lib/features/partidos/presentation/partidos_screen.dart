@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/tds_colors.dart';
-import '../../../core/theme/tds_text.dart';
 import '../../../core/widgets/tds_ui.dart';
 import '../domain/partido.dart';
 import '../providers/partidos_providers.dart';
@@ -52,7 +51,7 @@ class _PartidosScreenState extends ConsumerState<PartidosScreen> {
 
   static bool _enTab(Partido p, TabPartidos tab) => switch (tab) {
         TabPartidos.todos => true,
-        TabPartidos.enVivo => p.estado == EstadoPartido.enVivo,
+        TabPartidos.enVivo => p.estaEnJuego,
         TabPartidos.finalizados => p.estado == EstadoPartido.finalizado,
       };
 
@@ -90,7 +89,7 @@ class _PartidosScreenState extends ConsumerState<PartidosScreen> {
     for (final j in jornadas) {
       final enJornada = partidos.where((p) => p.nombreJornada == j);
       if (enJornada.any((p) =>
-          p.estado == EstadoPartido.enVivo ||
+          p.estaEnJuego ||
           (p.estado == EstadoPartido.futuro && (p.fecha == null || p.fecha!.isAfter(ahora))))) {
         return j;
       }
@@ -98,12 +97,13 @@ class _PartidosScreenState extends ConsumerState<PartidosScreen> {
     return jornadas.first;
   }
 
-  /// FUTURO → EN_JUEGO → FINALIZADO → Suspendido. Futuros/en juego por fecha más próxima;
-  /// finalizados del más reciente al más antiguo.
+  /// EN_JUEGO → FUTURO → FINALIZADO → Suspendido.
   static List<Partido> _ordenar(List<Partido> lista) {
     final sinFecha = DateTime(9999);
     return [...lista]..sort((a, b) {
-        final porEstado = a.estado.index.compareTo(b.estado.index);
+        final rankA = a.estaEnJuego ? 0 : (a.estado == EstadoPartido.futuro ? 1 : a.estado.index + 1);
+        final rankB = b.estaEnJuego ? 0 : (b.estado == EstadoPartido.futuro ? 1 : b.estado.index + 1);
+        final porEstado = rankA.compareTo(rankB);
         if (porEstado != 0) return porEstado;
         final porFecha = (a.fecha ?? sinFecha).compareTo(b.fecha ?? sinFecha);
         return a.estado == EstadoPartido.finalizado ? -porFecha : porFecha;
@@ -125,7 +125,7 @@ class _PartidosScreenState extends ConsumerState<PartidosScreen> {
   }
 
   Widget _buildContenido(List<Partido> lista) {
-    final todos = lista.where((p) => p.torneoActivo).toList();
+    final todos = lista.where((p) => p.torneoActivo || p.estaEnJuego).toList();
     int contar(TabPartidos tab) => todos.where((p) => _enTab(p, tab)).length;
     final torneos = todos.map((p) => p.torneo).toSet().toList()..sort();
     final enTabActual = todos.where((p) => _enTab(p, _tab)).toList();
@@ -294,7 +294,7 @@ class _PartidosScreenState extends ConsumerState<PartidosScreen> {
               sliver: SliverList.separated(
                 itemCount: grupos.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 32),
-                itemBuilder: (_, i) => SeccionTorneo(partidos: grupos[i]),
+                itemBuilder: (_, i) => SeccionTorneo(partidos: grupos[i], conPronostico: true),
               ),
             ),
           if (mostrarBotonVerMas)

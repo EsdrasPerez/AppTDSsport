@@ -41,7 +41,7 @@ class SeccionTorneo extends StatelessWidget {
         EncabezadoTorneo(partidos: partidos, cantidad: partidos.length),
         for (final p in partidos) ...[
           SizedBox(height: separacion),
-          p.estado == EstadoPartido.futuro
+          !p.estaEnJuego && p.estado == EstadoPartido.futuro
               ? FuturoCard(
                   partido: p,
                   pie: conPronostico && p.aceptaPronostico ? BotonPronosticar(partido: p) : null,
