@@ -27,6 +27,7 @@ import 'features/quinielas/presentation/participante_screen.dart';
 import 'features/quinielas/presentation/quiniela_detalle_screen.dart';
 import 'features/quinielas/presentation/rivales_screen.dart';
 import 'features/quinielas/presentation/unirse_quiniela_sheet.dart';
+import 'core/services/notificaciones_servicio.dart';
 import 'features/suscripcion/domain/pasarela_pago.dart';
 import 'features/suscripcion/presentation/pago/pago_resultado_screen.dart';
 import 'features/suscripcion/presentation/pago/pago_screen.dart';
@@ -49,6 +50,15 @@ Future<void> main() async {
     url: supabaseUrl,
     // ignore: deprecated_member_use
     anonKey: supabaseAnonKey,
+  );
+
+  // 3. Inicializar servicio de notificaciones locales (Android)
+  await NotificacionesServicio().inicializar(
+    onSelectNotification: (payload) {
+      if (payload != null && payload.isNotEmpty) {
+        _router.push(payload);
+      }
+    },
   );
 
   // ProviderScope: necesario para los providers (Riverpod)

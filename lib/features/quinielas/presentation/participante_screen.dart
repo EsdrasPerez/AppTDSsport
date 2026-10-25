@@ -184,7 +184,7 @@ class _PronosticoAbierto extends StatelessWidget {
               Expanded(
                 child: Text(Formatos.diaHora(p.fecha), style: TdsText.label(12, color: TdsColors.textoSecundario)),
               ),
-              EstadoPartidoPill(estado: p.estado),
+              EstadoPartidoPill(partido: p, estado: p.estado),
             ],
           ),
           const SizedBox(height: 8),
@@ -203,7 +203,7 @@ class _PronosticoAbierto extends StatelessWidget {
               Expanded(child: EquipoEscudo(nombre: p.visitante.nombre, escudoUrl: p.visitante.escudoUrl, size: 36)),
             ],
           ),
-          if (p.estado == EstadoPartido.enVivo) ...[
+          if (p.estaEnJuego) ...[
             const SizedBox(height: 8),
             Text('Marcador actual: ${golesTexto(p.golesLocal)} - ${golesTexto(p.golesVisitante)}',
                 style: TdsText.body(12, color: TdsColors.textoSecundario)),

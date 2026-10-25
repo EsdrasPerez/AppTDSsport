@@ -83,7 +83,7 @@ class _MisPronosticosScreenState extends ConsumerState<MisPronosticosScreen> {
         final pr = q.pronosticos[p.id];
         if (p.estaEnJuegoEn(ahora)) {
           if (pr != null) enJuego.add(_Fila(q, p, pr));
-        } else if (p.estado == EstadoPartido.finalizado) {
+        } else if (p.estadoEfectivoEn(ahora) == EstadoPartido.finalizado) {
           if (pr != null) finalizados.add(_Fila(q, p, pr));
         } else if (q.activa && p.aceptaPronosticoEn(ahora)) {
           if (pr != null) {

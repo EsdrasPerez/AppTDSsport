@@ -239,7 +239,7 @@ class _PronosticoCardState extends State<PronosticoCard> {
                   style: TdsText.label(12, color: TdsColors.onSurfaceVariant, letterSpacing: 0.5),
                 ),
               ),
-              EstadoPartidoPill(estado: partido.estado),
+              EstadoPartidoPill(partido: partido, estado: partido.estado),
             ],
           ),
           const SizedBox(height: 8),
@@ -269,6 +269,16 @@ class _PronosticoCardState extends State<PronosticoCard> {
               ),
             ],
           ),
+          if (!_bloqueado) ...[
+            const SizedBox(height: 12),
+            _MarcadoresRapidos(
+              onSeleccionar: (local, visitante) {
+                _localController.text = local.toString();
+                _visitanteController.text = visitante.toString();
+                _alCambiar();
+              },
+            ),
+          ],
           const SizedBox(height: 16),
           if (_bloqueado)
             AvisoPronostico(icono: Icons.lock_outline, texto: 'Pronósticos cerrados', color: TdsColors.onSurfaceVariant)
@@ -287,6 +297,76 @@ class _PronosticoCardState extends State<PronosticoCard> {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Fila de chips de marcadores rápidos y frecuentes en el fútbol.
+class _MarcadoresRapidos extends StatelessWidget {
+  const _MarcadoresRapidos({required this.onSeleccionar});
+
+  final void Function(int local, int visitante) onSeleccionar;
+
+  static const _opciones = [
+    (1, 0),
+    (2, 1),
+    (1, 1),
+    (0, 0),
+    (0, 1),
+    (1, 2),
+    (2, 0),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.flash_on, size: 13, color: TdsColors.acento),
+            const SizedBox(width: 4),
+            Text(
+              'RÁPIDO: Toca para elegir un marcador frecuente',
+              style: TdsText.label(10, color: TdsColors.textoSecundario, letterSpacing: 0.3),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final op in _opciones)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Material(
+                    color: TdsColors.superficieAlta,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        onSeleccionar(op.$1, op.$2);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: TdsColors.borde.withValues(alpha: 0.7)),
+                        ),
+                        child: Text(
+                          '${op.$1} - ${op.$2}',
+                          style: TdsText.stats(12, color: TdsColors.texto),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -357,7 +437,7 @@ class LapizEditarPremium extends StatelessWidget {
   }
 }
 
-/// Campo de goles (0..99) de un pronóstico.
+/// Campo de goles con botones accesibles [-] y [+] para pronosticar fácil sin teclado.
 class GolesField extends StatelessWidget {
   const GolesField({
     super.key,
@@ -367,6 +447,7 @@ class GolesField extends StatelessWidget {
     required this.etiqueta,
     this.autofocus = false,
     this.onTap,
+    this.mostrarBotones = true,
   });
 
   final TextEditingController controller;
@@ -375,28 +456,169 @@ class GolesField extends StatelessWidget {
   final String etiqueta;
   final bool autofocus;
   final VoidCallback? onTap;
+  final bool mostrarBotones;
+
+  void _decrementar() {
+    if (!enabled) return;
+    HapticFeedback.lightImpact();
+    final actual = int.tryParse(controller.text.trim()) ?? 0;
+    if (actual > 0) {
+      controller.text = (actual - 1).toString();
+    } else {
+      controller.text = '0';
+    }
+    onChanged();
+  }
+
+  void _incrementar() {
+    if (!enabled) return;
+    HapticFeedback.lightImpact();
+    final actual = int.tryParse(controller.text.trim()) ?? -1;
+    if (actual < 99) {
+      controller.text = (actual + 1).toString();
+    }
+    onChanged();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 52,
-      child: Semantics(
-        label: etiqueta,
-        child: TextField(
-          controller: controller,
-          enabled: enabled,
-          autofocus: autofocus && enabled,
-          onTap: onTap,
-          onChanged: (_) => onChanged(),
-          textAlign: TextAlign.center,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
-          style: TdsText.stats(22, color: enabled ? TdsColors.onSurface : TdsColors.onSurfaceVariant),
-          decoration: InputDecoration(
-            hintText: '-',
-            hintStyle: TdsText.stats(22, color: TdsColors.outlineVariant),
-            fillColor: enabled ? TdsColors.surfaceContainerHighest : TdsColors.surfaceContainerLow,
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+    if (!mostrarBotones) {
+      return SizedBox(
+        width: 52,
+        child: Semantics(
+          label: etiqueta,
+          child: TextField(
+            controller: controller,
+            enabled: enabled,
+            autofocus: autofocus && enabled,
+            onTap: onTap,
+            onChanged: (_) => onChanged(),
+            textAlign: TextAlign.center,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
+            style: TdsText.stats(20, color: enabled ? TdsColors.onSurface : TdsColors.onSurfaceVariant),
+            decoration: InputDecoration(
+              hintText: '-',
+              hintStyle: TdsText.stats(20, color: TdsColors.outlineVariant),
+              fillColor: enabled ? TdsColors.surfaceContainerHighest : TdsColors.surfaceContainerLow,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Semantics(
+      label: etiqueta,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Botón grande [-]
+          _BotonStepper(
+            icono: Icons.remove,
+            enabled: enabled,
+            onTap: _decrementar,
+            tooltip: 'Menos un gol',
+          ),
+          const SizedBox(width: 3),
+          // Caja de texto central con el marcador
+          SizedBox(
+            width: 34,
+            height: 38,
+            child: TextField(
+              controller: controller,
+              enabled: enabled,
+              autofocus: autofocus && enabled,
+              onTap: onTap,
+              onChanged: (_) => onChanged(),
+              textAlign: TextAlign.center,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
+              style: TdsText.stats(18, color: enabled ? TdsColors.texto : TdsColors.textoSecundario),
+              decoration: InputDecoration(
+                hintText: '-',
+                hintStyle: TdsText.stats(18, color: TdsColors.textoTenue),
+                filled: true,
+                fillColor: enabled ? TdsColors.superficieAlta : TdsColors.superficie,
+                contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: enabled ? TdsColors.borde : Colors.transparent),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: TdsColors.borde),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: TdsColors.acento, width: 1.5),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 3),
+          // Botón grande [+]
+          _BotonStepper(
+            icono: Icons.add,
+            esAcento: true,
+            enabled: enabled,
+            onTap: _incrementar,
+            tooltip: 'Más un gol',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BotonStepper extends StatelessWidget {
+  const _BotonStepper({
+    required this.icono,
+    required this.enabled,
+    required this.onTap,
+    required this.tooltip,
+    this.esAcento = false,
+  });
+
+  final IconData icono;
+  final bool enabled;
+  final VoidCallback onTap;
+  final String tooltip;
+  final bool esAcento;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: enabled
+            ? (esAcento ? TdsColors.acento.withValues(alpha: 0.18) : TdsColors.superficieAlta)
+            : TdsColors.superficie.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: enabled ? onTap : null,
+          child: Container(
+            width: 26,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: enabled
+                    ? (esAcento ? TdsColors.acento.withValues(alpha: 0.4) : TdsColors.borde)
+                    : Colors.transparent,
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              icono,
+              size: 16,
+              color: enabled
+                  ? (esAcento ? TdsColors.acento : TdsColors.texto)
+                  : TdsColors.textoTenue,
+            ),
           ),
         ),
       ),

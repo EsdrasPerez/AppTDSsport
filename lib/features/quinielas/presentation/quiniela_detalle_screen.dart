@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -22,6 +21,7 @@ import 'widgets/pronosticos_torneo_card.dart';
 import 'widgets/quiniela_resumen_cards.dart';
 import 'widgets/resultado_card.dart';
 import 'widgets/resultado_quiniela_badge.dart';
+import 'widgets/compartir_tabla_sheet.dart';
 
 /// Detalle de Quiniela: Pendientes (pronósticos), Finalizados y Posiciones.
 /// Con [soloLectura] (desde el historial) no hay pestaña Pendientes ni invitación.
@@ -114,13 +114,7 @@ class _QuinielaDetalleScreenState extends ConsumerState<QuinielaDetalleScreen> w
   }
 
   void _compartirInvitacion(QuinielaDetalle q) {
-    // En web la app usa rutas con "#": el enlace abre la hoja "Unirse" ya llenada.
-    final enlace = kIsWeb ? '\n${Uri.base.origin}/#${Rutas.unirseConCodigo(q.codigoAcceso)}' : '';
-    Clipboard.setData(ClipboardData(
-      text: 'Únete a mi quiniela "${q.nombre}" (${q.torneoNombre}) en TDS Sport.\n'
-          'Código: ${q.codigoAcceso}$enlace',
-    ));
-    Notificacion.exito(context, 'Pega el mensaje en tu chat para invitar a tus amigos.', titulo: 'Invitación copiada');
+    mostrarCompartirInvitacionSheet(context, q);
   }
 
   Future<void> _confirmarEliminar(QuinielaDetalle q, int miembros) async {
@@ -230,13 +224,25 @@ class _QuinielaDetalleScreenState extends ConsumerState<QuinielaDetalleScreen> w
               color: TdsColors.surfaceContainerHigh,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               onSelected: (opcion) {
-                if (opcion == 'eliminar') {
+                if (opcion == 'compartir_tabla') {
+                  mostrarCompartirTablaSheet(context, d);
+                } else if (opcion == 'eliminar') {
                   _confirmarEliminar(d.quiniela, d.posiciones.length);
                 } else if (opcion == 'salir') {
                   _confirmarSalir(d.quiniela);
                 }
               },
               itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'compartir_tabla',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.share_rounded, color: colorWhatsApp, size: 20),
+                      const SizedBox(width: 10),
+                      Text('Compartir tabla en WhatsApp', style: TdsText.label(13)),
+                    ],
+                  ),
+                ),
                 if (d.soyCreador)
                   PopupMenuItem(
                     value: 'eliminar',
@@ -359,9 +365,50 @@ class _Contenido extends StatelessWidget {
                     onRecargar: onRecargar,
                     vacio: 'Todavía no hay participantes',
                     separacion: 8,
-                    itemCount: d.posiciones.length,
+                    itemCount: d.posiciones.isEmpty ? 0 : d.posiciones.length + 1,
                     itemBuilder: (context, i) {
-                      final pos = d.posiciones[i];
+                      if (i == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Material(
+                            color: colorWhatsApp.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(16),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () => mostrarCompartirTablaSheet(context, d),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: const BoxDecoration(
+                                        color: colorWhatsApp,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.share_rounded, size: 16, color: Colors.white),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text('Compartir tabla en WhatsApp',
+                                              style: TdsText.headline(13, color: Colors.white)),
+                                          Text('Envía el ranking actual al grupo de amigos',
+                                              style: TdsText.body(11, color: TdsColors.textoSecundario)),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(Icons.arrow_forward_ios, size: 13, color: colorWhatsApp),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      final pos = d.posiciones[i - 1];
                       return PosicionTile(
                         posicion: pos,
                         esYo: pos.usuarioId == d.miId,

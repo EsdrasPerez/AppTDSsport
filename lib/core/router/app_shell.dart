@@ -10,6 +10,8 @@ import '../theme/tds_text.dart';
 import '../widgets/tds_pill.dart';
 import 'rutas.dart';
 
+import 'package:flutter/services.dart';
+
 const anchoEscritorio = 800.0;
 
 /// Llave del Scaffold del shell: permite abrir el menú (Drawer) desde el AppBar de cada pantalla.
@@ -18,7 +20,7 @@ final shellScaffoldKey = GlobalKey<ScaffoldState>(debugLabel: 'shell');
 bool esEscritorio(BuildContext context) => MediaQuery.sizeOf(context).width > anchoEscritorio;
 
 /// Marco de todas las pantallas con sesión: barra lateral en escritorio (> 800 px),
-/// menú (Drawer) en móvil.
+/// barra de navegación inferior (BottomNavigationBar) + menú (Drawer) en móvil.
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.child});
 
@@ -32,12 +34,174 @@ class AppShell extends StatelessWidget {
         body: Row(children: [const BarraLateral(), Expanded(child: child)]),
       );
     }
+
+    final ruta = GoRouterState.of(context).uri.path;
+    final ocultarBottomBar = ruta.contains('/pago');
+
     return Scaffold(
       key: shellScaffoldKey,
       drawer: const Drawer(width: 280, child: BarraLateral()),
       body: child,
+      bottomNavigationBar: ocultarBottomBar ? null : TdsBottomNavigationBar(rutaActual: ruta),
     );
   }
+}
+
+/// Barra inferior moderna para navegación rápida con el pulgar en móviles.
+class TdsBottomNavigationBar extends StatelessWidget {
+  const TdsBottomNavigationBar({super.key, required this.rutaActual});
+
+  final String rutaActual;
+
+  int _calcularIndice(String ruta) {
+    if (ruta == Rutas.inicio) return 0;
+    if (ruta == Rutas.partidos || ruta.startsWith('${Rutas.partidos}/') || ruta == Rutas.calendario) return 1;
+    if (ruta == Rutas.quinielas ||
+        ruta.startsWith('${Rutas.quinielas}/') ||
+        ruta == Rutas.quinielaNueva ||
+        ruta == Rutas.quinielaUnirse) {
+      return 2;
+    }
+    if (ruta == Rutas.misPronosticos || ruta == Rutas.rivales) return 3;
+    if (ruta == Rutas.perfil || ruta.startsWith('${Rutas.perfil}/') || ruta == Rutas.suscripcion) return 4;
+    return 0;
+  }
+
+  void _navegar(BuildContext context, int index) {
+    HapticFeedback.selectionClick();
+    switch (index) {
+      case 0:
+        context.go(Rutas.inicio);
+        break;
+      case 1:
+        context.go(Rutas.partidos);
+        break;
+      case 2:
+        context.go(Rutas.quinielas);
+        break;
+      case 3:
+        context.go(Rutas.misPronosticos);
+        break;
+      case 4:
+        context.go(Rutas.perfil);
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final indiceSeleccionado = _calcularIndice(rutaActual);
+
+    const items = [
+      _BottomNavItemData(
+        icono: Icons.home_rounded,
+        iconoInactivo: Icons.home_outlined,
+        etiqueta: 'Inicio',
+      ),
+      _BottomNavItemData(
+        icono: Icons.sports_soccer_rounded,
+        iconoInactivo: Icons.sports_soccer_outlined,
+        etiqueta: 'Partidos',
+      ),
+      _BottomNavItemData(
+        icono: Icons.emoji_events_rounded,
+        iconoInactivo: Icons.emoji_events_outlined,
+        etiqueta: 'Quinielas',
+      ),
+      _BottomNavItemData(
+        icono: Icons.edit_note_rounded,
+        iconoInactivo: Icons.edit_note_outlined,
+        etiqueta: 'Pronósticos',
+      ),
+      _BottomNavItemData(
+        icono: Icons.person_rounded,
+        iconoInactivo: Icons.person_outline_rounded,
+        etiqueta: 'Perfil',
+      ),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: TdsColors.superficie,
+        border: Border(
+          top: BorderSide(color: TdsColors.borde.withValues(alpha: 0.5), width: 1),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black38,
+            blurRadius: 12,
+            offset: Offset(0, -3),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final activo = index == indiceSeleccionado;
+              return Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => _navegar(context, index),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: activo ? TdsColors.acento.withValues(alpha: 0.16) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Icon(
+                              activo ? item.icono : item.iconoInactivo,
+                              color: activo ? TdsColors.acento : TdsColors.textoSecundario,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            item.etiqueta,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TdsText.label(
+                              11,
+                              color: activo ? TdsColors.acento : TdsColors.textoSecundario,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavItemData {
+  const _BottomNavItemData({
+    required this.icono,
+    required this.iconoInactivo,
+    required this.etiqueta,
+  });
+
+  final IconData icono;
+  final IconData iconoInactivo;
+  final String etiqueta;
 }
 
 class _Opcion {

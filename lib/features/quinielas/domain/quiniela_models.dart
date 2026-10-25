@@ -13,10 +13,10 @@ enum ResultadoQuiniela { enJuego, ganada, perdida }
 /// de un torneo: finalizada si el torneo está inactivo o ya se jugaron todos sus partidos no suspendidos.
 EstadoQuiniela calcularEstadoQuiniela({required bool torneoActivo, required List<Partido> partidos}) {
   final jugables = partidos.where((p) => p.estado != EstadoPartido.suspendido).toList();
-  if (!torneoActivo || (jugables.isNotEmpty && jugables.every((p) => p.estado == EstadoPartido.finalizado))) {
+  if (!torneoActivo || (jugables.isNotEmpty && jugables.every((p) => p.estadoEfectivo == EstadoPartido.finalizado))) {
     return EstadoQuiniela.finalizada;
   }
-  if (jugables.every((p) => p.estado == EstadoPartido.futuro)) return EstadoQuiniela.porIniciar;
+  if (jugables.every((p) => p.estadoEfectivo == EstadoPartido.futuro)) return EstadoQuiniela.porIniciar;
   return EstadoQuiniela.enCurso;
 }
 
@@ -170,8 +170,8 @@ class ResumenQuiniela extends Equatable {
   }
 
   List<Partido> get _jugables => partidos.where((p) => p.estado != EstadoPartido.suspendido).toList();
-  List<Partido> get finalizados => partidos.where((p) => p.estado == EstadoPartido.finalizado).toList();
-  List<Partido> get futuros => partidos.where((p) => p.estado == EstadoPartido.futuro).toList();
+  List<Partido> get finalizados => partidos.where((p) => p.estadoEfectivo == EstadoPartido.finalizado).toList();
+  List<Partido> get futuros => partidos.where((p) => p.estadoEfectivo == EstadoPartido.futuro).toList();
   int get enVivo => partidos.where((p) => p.estaEnJuego).length;
 
   /// Partidos en juego primero y luego los que se jugarán (sin finalizados ni suspendidos).
@@ -250,12 +250,13 @@ class DetalleQuiniela extends Equatable {
   ResultadoQuiniela resultadoDe(Posicion? p) =>
       p == null ? ResultadoQuiniela.enJuego : calcularResultado(estado, p.lugar);
 
-  /// Todo lo que no ha finalizado (los que no aceptan pronóstico se muestran bloqueados).
-  List<Partido> get pendientes => partidos.where((p) => p.estado != EstadoPartido.finalizado).toList();
+  /// Partidos por jugar o en juego (los concluidos pasan a finalizados).
+  List<Partido> get pendientes =>
+      partidos.where((p) => p.estadoEfectivo != EstadoPartido.finalizado).toList();
 
   /// Finalizados, del más reciente al más antiguo.
   List<Partido> get finalizados =>
-      partidos.where((p) => p.estado == EstadoPartido.finalizado).toList().reversed.toList();
+      partidos.where((p) => p.estadoEfectivo == EstadoPartido.finalizado).toList().reversed.toList();
 
   @override
   List<Object?> get props => [quiniela, partidos, posiciones, misPronosticos, miId];

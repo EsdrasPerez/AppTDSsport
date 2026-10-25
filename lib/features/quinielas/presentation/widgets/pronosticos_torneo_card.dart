@@ -681,14 +681,14 @@ class _FilaPartido extends StatelessWidget {
                   style: TdsText.label(10, color: TdsColors.advertencia),
                 ),
                 const SizedBox(width: 6),
-              ] else if (guardado && abierto) ...[
-                const Icon(Icons.check_circle, size: 14, color: TdsColors.acento),
+              ] else if (guardado) ...[
+                Icon(Icons.check_circle, size: 14, color: abierto ? TdsColors.acento : TdsColors.textoSecundario),
                 const SizedBox(width: 3),
-                Text('Guardado', style: TdsText.label(10, color: TdsColors.acento)),
+                Text('Guardado', style: TdsText.label(10, color: abierto ? TdsColors.acento : TdsColors.textoSecundario)),
                 const SizedBox(width: 6),
               ],
               if (abierto && bloqueadoPremium) const LapizEditarPremium(),
-              EstadoPartidoPill(estado: p.estado),
+              EstadoPartidoPill(partido: p, estado: p.estado),
             ],
           ),
           const SizedBox(height: 6),

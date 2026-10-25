@@ -52,7 +52,7 @@ class _PartidosScreenState extends ConsumerState<PartidosScreen> {
   static bool _enTab(Partido p, TabPartidos tab) => switch (tab) {
         TabPartidos.todos => true,
         TabPartidos.enVivo => p.estaEnJuego,
-        TabPartidos.finalizados => p.estado == EstadoPartido.finalizado,
+        TabPartidos.finalizados => p.estadoEfectivo == EstadoPartido.finalizado,
       };
 
   static bool _esHoy(DateTime? fecha) {
@@ -101,12 +101,12 @@ class _PartidosScreenState extends ConsumerState<PartidosScreen> {
   static List<Partido> _ordenar(List<Partido> lista) {
     final sinFecha = DateTime(9999);
     return [...lista]..sort((a, b) {
-        final rankA = a.estaEnJuego ? 0 : (a.estado == EstadoPartido.futuro ? 1 : a.estado.index + 1);
-        final rankB = b.estaEnJuego ? 0 : (b.estado == EstadoPartido.futuro ? 1 : b.estado.index + 1);
+        final rankA = a.estaEnJuego ? 0 : (a.estadoEfectivo == EstadoPartido.futuro ? 1 : a.estadoEfectivo.index + 1);
+        final rankB = b.estaEnJuego ? 0 : (b.estadoEfectivo == EstadoPartido.futuro ? 1 : b.estadoEfectivo.index + 1);
         final porEstado = rankA.compareTo(rankB);
         if (porEstado != 0) return porEstado;
         final porFecha = (a.fecha ?? sinFecha).compareTo(b.fecha ?? sinFecha);
-        return a.estado == EstadoPartido.finalizado ? -porFecha : porFecha;
+        return a.estadoEfectivo == EstadoPartido.finalizado ? -porFecha : porFecha;
       });
   }
 

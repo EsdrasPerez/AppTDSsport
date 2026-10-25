@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/theme/tds_colors.dart';
 import '../../../../core/theme/tds_text.dart';
 import '../../../../core/widgets/tds_buttons.dart';
+import 'compartir_tabla_sheet.dart';
 
 class CodigoExitoDialog extends StatefulWidget {
   const CodigoExitoDialog({
@@ -165,7 +166,39 @@ class _CodigoExitoDialogState extends State<CodigoExitoDialog> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorWhatsApp,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: () {
+                  final buffer = StringBuffer();
+                  buffer.writeln('⚽ *¡ÚNETE A MI QUINIELA!*');
+                  buffer.writeln('🏆 *${widget.nombreQuiniela}*');
+                  if (widget.torneoNombre != null && widget.torneoNombre!.isNotEmpty) {
+                    buffer.writeln('🏅 Torneo: ${widget.torneoNombre}');
+                  }
+                  buffer.writeln('');
+                  buffer.writeln('Demuestra cuánto sabes de fútbol y compite con nosotros.');
+                  buffer.writeln('');
+                  buffer.writeln('🔑 Código de acceso: *${widget.codigo}*');
+                  buffer.writeln('');
+                  buffer.writeln('📲 Entra a *TDS Sport*, ingresa el código y ¡empieza a pronosticar!');
+                  lanzarWhatsApp(buffer.toString());
+                },
+                icon: const Icon(Icons.share_rounded, size: 18, color: Colors.white),
+                label: Text(
+                  'Invitar amigos por WhatsApp',
+                  style: TdsText.headline(14, color: Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: TdsPillButton(

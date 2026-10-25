@@ -123,7 +123,7 @@ class _ListaPartidos extends ConsumerWidget {
                       ),
                       Text('${golesTexto(p.golesLocal)} - ${golesTexto(p.golesVisitante)}', style: TdsText.stats(18)),
                       const SizedBox(width: 12),
-                      EstadoPartidoPill(estado: p.estado),
+                      EstadoPartidoPill(partido: p, estado: p.estado),
                     ],
                   ),
                 );

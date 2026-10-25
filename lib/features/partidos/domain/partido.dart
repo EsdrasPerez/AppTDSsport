@@ -129,21 +129,46 @@ class Partido extends Equatable {
 
   /// ¿El partido se está jugando en este momento?
   /// Se considera en juego si:
-  /// 1. Su estado en base de datos es `enVivo` (id 2).
-  /// 2. O si es un partido no finalizado/suspendido cuya hora de inicio ya llegó y
-  ///    se encuentra en la ventana habitual de juego (~135 minutos desde el inicio).
+  /// - Su estado no es finalizado ni suspendido.
+  /// - No han transcurrido más de 150 minutos (2.5 horas) desde la hora de inicio.
+  /// - Si la base dice `enVivo` O si la hora de inicio ya llegó y estamos en los ~135 min de partido.
   bool estaEnJuegoEn(DateTime ahora) {
-    if (estado == EstadoPartido.enVivo) return true;
     if (estado == EstadoPartido.finalizado || estado == EstadoPartido.suspendido) return false;
-    if (fecha == null) return false;
+    if (fecha == null) return estado == EstadoPartido.enVivo;
+    // Si ya pasaron más de 150 minutos desde el inicio, el partido ya concluyó en la vida real
+    if (ahora.isAfter(fecha!.add(const Duration(minutes: 150)))) return false;
+    // Si en base de datos está como en vivo, verificamos que no sea antes del inicio
+    if (estado == EstadoPartido.enVivo) {
+      return ahora.isAfter(fecha!.subtract(const Duration(minutes: 15)));
+    }
+    // Si es un partido sin finalizar cuya hora de inicio ya llegó
     return ahora.isAfter(fecha!) && ahora.isBefore(fecha!.add(const Duration(minutes: 135)));
   }
 
   bool get estaEnJuego => estaEnJuegoEn(DateTime.now());
 
-  /// Se puede pronosticar: estado FUTURO, no está en juego y la hora de inicio todavía no llega.
-  bool aceptaPronosticoEn(DateTime ahora) =>
-      estado == EstadoPartido.futuro && !estaEnJuegoEn(ahora) && (fecha == null || fecha!.isAfter(ahora));
+  /// Estado efectivo que considera el paso del tiempo real:
+  /// - suspendido: se mantiene suspendido
+  /// - finalizado: si la base lo marca finalizado o ya pasaron más de 135 minutos desde el inicio
+  /// - enVivo: si se encuentra jugando en este momento
+  /// - futuro: si la hora de inicio aún no llega
+  EstadoPartido estadoEfectivoEn(DateTime ahora) {
+    if (estado == EstadoPartido.suspendido) return EstadoPartido.suspendido;
+    if (estado == EstadoPartido.finalizado) return EstadoPartido.finalizado;
+    if (fecha == null) return estado;
+    if (ahora.isBefore(fecha!)) return EstadoPartido.futuro;
+    if (estaEnJuegoEn(ahora)) return EstadoPartido.enVivo;
+    return EstadoPartido.finalizado;
+  }
+
+  EstadoPartido get estadoEfectivo => estadoEfectivoEn(DateTime.now());
+
+  /// Se puede pronosticar: estado FUTURO y la hora de inicio todavía no llega.
+  bool aceptaPronosticoEn(DateTime ahora) {
+    if (estado != EstadoPartido.futuro) return false;
+    if (fecha == null) return true;
+    return ahora.isBefore(fecha!);
+  }
 
   bool get aceptaPronostico => aceptaPronosticoEn(DateTime.now());
 

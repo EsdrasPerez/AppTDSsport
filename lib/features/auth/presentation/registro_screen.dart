@@ -25,6 +25,7 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
   final _passwordController = TextEditingController();
   final _confirmarPasswordController = TextEditingController();
   bool _cargando = false;
+  bool _aceptoTerminos = false;
 
   @override
   void dispose() {
@@ -37,6 +38,14 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
 
   Future<void> _procesarRegistro() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!_aceptoTerminos) {
+      Notificacion.advertencia(
+        context,
+        'Debes aceptar los Términos y Condiciones para crear tu cuenta.',
+        titulo: 'Términos requeridos',
+      );
+      return;
+    }
     setState(() => _cargando = true);
 
     try {
@@ -181,6 +190,144 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
     }
   }
 
+  void _mostrarTerminosYCondiciones() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: TdsColors.superficieAlta,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 600),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 16, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: TdsColors.acento.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.description_outlined, color: TdsColors.acento, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Términos y Condiciones', style: TdsText.headline(18)),
+                          const SizedBox(height: 2),
+                          Text('TDS Sport • Reglas y Políticas', style: TdsText.body(12, color: TdsColors.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: TdsColors.borde, height: 1),
+              // Contenido scrollable
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _seccionTerminos(
+                        '1. Naturaleza y Propósito del Servicio',
+                        'TDS Sport es una plataforma deportiva enfocada en el entretenimiento, la creación y participación en quinielas comunitarias y el seguimiento de resultados de fútbol. Fomentamos una competencia sana, justa y transparente.',
+                      ),
+                      _seccionTerminos(
+                        '2. Registro y Cuidado de la Cuenta',
+                        'Al registrarte, te comprometes a proporcionar información veraz. Eres el único responsable de la seguridad de tus credenciales. Queda prohibida la creación de múltiples cuentas por un mismo usuario con fines de manipulación de tablas o abuso de beneficios.',
+                      ),
+                      _seccionTerminos(
+                        '3. Reglas de Pronósticos y Cierre',
+                        'Cada usuario puede ingresar sus pronósticos antes del pitazo inicial oficial de cada encuentro. Una vez iniciado el partido, el sistema bloquea automáticamente cualquier intento de edición para garantizar la equidad de todos los participantes.',
+                      ),
+                      _seccionTerminos(
+                        '4. Planes y Membresías PRO / VIP',
+                        'Las funciones avanzadas como quinielas ilimitadas, comparativas históricas y métricas detalladas están sujetas a los términos del plan adquirido. Las renovaciones y cancelaciones se gestionan desde el centro de suscripciones.',
+                      ),
+                      _seccionTerminos(
+                        '5. Privacidad y Protección de Datos',
+                        'Tus datos personales se encuentran protegidos mediante estándares de cifrado. No compartimos ni comercializamos tu información personal con terceros bajo ningún concepto.',
+                      ),
+                      _seccionTerminos(
+                        '6. Conducta y Convivencia',
+                        'Nos reservamos el derecho de sancionar o cancelar cuentas con comportamientos tóxicos, lenguaje inapropiado en apodos de quinielas o intentos de alteración de la plataforma.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(color: TdsColors.borde, height: 1),
+              // Botones de acción
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: TdsColors.borde),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: Text('Cerrar', style: TdsText.label(13, color: TdsColors.onSurfaceVariant)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: TdsColors.acento,
+                          foregroundColor: TdsColors.sobreAcento,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          setState(() => _aceptoTerminos = true);
+                          Navigator.of(dialogContext).pop();
+                        },
+                        icon: const Icon(Icons.check, size: 18),
+                        label: Text('Aceptar Términos', style: TdsText.label(13, color: TdsColors.sobreAcento)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _seccionTerminos(String titulo, String cuerpo) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(titulo, style: TdsText.headline(14, color: TdsColors.acento)),
+          const SizedBox(height: 4),
+          Text(
+            cuerpo,
+            style: TdsText.body(13, color: TdsColors.onSurfaceVariant).copyWith(height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AuthLayout(
@@ -230,12 +377,78 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
               controller: _confirmarPasswordController,
               label: 'Confirma tu contraseña',
               textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _procesarRegistro(),
+              onSubmitted: (_) {
+                if (_aceptoTerminos) _procesarRegistro();
+              },
               validator: (v) => validarConfirmacion(v, _passwordController.text),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
+            // Checkbox para Términos y Condiciones
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: _cargando
+                  ? null
+                  : () {
+                      setState(() => _aceptoTerminos = !_aceptoTerminos);
+                    },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Checkbox(
+                          value: _aceptoTerminos,
+                          activeColor: TdsColors.acento,
+                          checkColor: TdsColors.sobreAcento,
+                          side: const BorderSide(color: TdsColors.borde, width: 1.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                          onChanged: _cargando
+                              ? null
+                              : (valor) {
+                                  setState(() => _aceptoTerminos = valor ?? false);
+                                },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'He leído y acepto los ',
+                            style: TdsText.body(13, color: TdsColors.onSurfaceVariant),
+                          ),
+                          InkWell(
+                            onTap: _mostrarTerminosYCondiciones,
+                            borderRadius: BorderRadius.circular(4),
+                            child: Text(
+                              'Términos y Condiciones',
+                              style: TdsText.label(13, color: TdsColors.acento).copyWith(
+                                decoration: TextDecoration.underline,
+                                decorationColor: TdsColors.acento,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            ' de la plataforma.',
+                            style: TdsText.body(13, color: TdsColors.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _cargando ? null : _procesarRegistro,
+              onPressed: (_cargando || !_aceptoTerminos) ? null : _procesarRegistro,
               child: _cargando
                   ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Row(
@@ -252,12 +465,6 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
               ],
             ),
             // TODO(decision): D5 — botón "Continuar con Google" oculto hasta implementar signInWithOAuth.
-            const SizedBox(height: 16),
-            Text(
-              'Al registrarte, aceptas nuestros Términos de Servicio y Política de Privacidad.',
-              textAlign: TextAlign.center,
-              style: TdsText.body(12, color: TdsColors.onSurfaceVariant),
-            ),
           ],
         ),
       ),

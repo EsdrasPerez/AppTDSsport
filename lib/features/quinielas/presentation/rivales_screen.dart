@@ -384,7 +384,7 @@ class _EncabezadoPartido extends StatelessWidget {
     final cuenta = Formatos.cuentaRegresiva(p.fecha);
 
     return TdsCard(
-      glow: p.estado == EstadoPartido.enVivo,
+      glow: p.estaEnJuego,
       child: Column(
         children: [
           Row(
@@ -395,7 +395,7 @@ class _EncabezadoPartido extends StatelessWidget {
                   style: TdsText.label(12, color: futuro && cuenta != null ? TdsColors.acento : TdsColors.textoSecundario),
                 ),
               ),
-              EstadoPartidoPill(estado: p.estado),
+              EstadoPartidoPill(partido: p, estado: p.estado),
             ],
           ),
           const SizedBox(height: 8),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/rutas.dart';
+import '../../../core/services/notificaciones_servicio.dart';
 import '../../../core/theme/tds_colors.dart';
 import '../../../core/theme/tds_text.dart';
 import '../../../core/widgets/tds_ui.dart';
@@ -14,6 +15,7 @@ import '../../perfil/providers/perfil_providers.dart';
 import '../../quinielas/domain/quiniela_models.dart';
 import '../../quinielas/providers/quinielas_providers.dart';
 import '../../suscripcion/presentation/widgets/pro_banner.dart';
+import 'widgets/banner_anti_olvido.dart';
 import 'widgets/dashboard_widgets.dart';
 
 /// Panel principal (/inicio): Centro de control deportivo en tiempo real con
@@ -31,6 +33,14 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Sincronizar automáticamente alertas de partidos por iniciar en Android
+    ref.listen<AsyncValue<List<ResumenQuiniela>>>(quinielasActivasProvider, (_, next) {
+      final lista = next.valueOrNull;
+      if (lista != null && lista.isNotEmpty) {
+        ref.read(notificacionesServicioProvider).sincronizarAlertasAntiOlvido(lista);
+      }
+    });
+
     return Scaffold(
       appBar: TdsAppBar(titulo: 'TDS SPORT', onRefrescar: () => _recargar(ref)),
       body: RefreshIndicator(
@@ -170,6 +180,9 @@ class DashboardScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 20),
+
+          // Banner Anti-Olvido: Avisos de partidos de hoy sin pronóstico
+          BannerAntiOlvido(quinielas: activas),
 
           // 1. KPIs Rápidos del Usuario
           DashboardKpiCards(

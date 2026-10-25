@@ -680,7 +680,7 @@ class PronosticoFila extends StatelessWidget {
                 runSpacing: 4,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  EstadoPartidoPill(estado: p.estado, fecha: p.fecha),
+                  EstadoPartidoPill(partido: p, estado: p.estado, fecha: p.fecha),
                   Text(partidoTexto, style: TdsText.label(12)),
                 ],
               ),
